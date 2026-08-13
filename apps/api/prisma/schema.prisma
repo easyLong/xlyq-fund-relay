@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  code      String   @unique(map: "uk_organizations_code") @db.VarChar(64)
+  name      String   @db.VarChar(128)
+  status    String   @default("ACTIVE") @db.VarChar(32)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  tasks     Task[]
+
+  @@map("organizations")
+}
+
+model User {
+  id          BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  username    String?     @unique(map: "uk_users_username") @db.VarChar(64)
+  displayName String      @map("display_name") @db.VarChar(64)
+  mobile      String?     @unique(map: "uk_users_mobile") @db.VarChar(32)
+  email       String?     @unique(map: "uk_users_email") @db.VarChar(128)
+  passwordHash String?    @map("password_hash") @db.VarChar(255)
+  role        String      @default("EXECUTOR") @db.VarChar(32)
+  status      String      @default("ACTIVE") @db.VarChar(32)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.DateTime(3)
+  tasks       Task[]      @relation("TaskCreatedBy")
+  claims      TaskClaim[]
+  pointAccount UserPointAccount?
+  pointLedgers PointLedger[]
+  sentTaskReminders TaskReminder[] @relation("TaskReminderSender")
+  receivedTaskReminders TaskReminder[] @relation("TaskReminderRecipient")
+
+  @@map("users")
+}
+
+model FundProduct {
+  id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  code        String?  @unique(map: "uk_fund_products_code") @db.VarChar(64)
+  name        String   @db.VarChar(128)
+  productType String?  @map("product_type") @db.VarChar(64)
+  riskLevel   String?  @map("risk_level") @db.VarChar(32)
+  status      String   @default("ACTIVE") @db.VarChar(32)
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  tasks       Task[]
+
+  @@map("fund_products")
+}
+
+model Task {
+  id                     BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  organizationId         BigInt        @map("organization_id") @db.UnsignedBigInt
+  fundProductId          BigInt?       @map("fund_product_id") @db.UnsignedBigInt
+  title                  String        @db.VarChar(160)
+  description            String?       @db.Text
+  originalText           String?       @map("original_text") @db.LongText
+  taskType               String        @map("task_type") @db.VarChar(64)
+  platform               String        @db.VarChar(64)
+  campaignName           String?       @map("campaign_name") @db.VarChar(128)
+  status                 String        @default("DRAFT") @db.VarChar(32)
+  quota                  Int           @default(0) @db.UnsignedInt
+  rewardPoints           Int           @default(10) @map("reward_points") @db.UnsignedInt
+  claimedCount           Int           @default(0) @map("claimed_count") @db.UnsignedInt
+  approvedCount          Int           @default(0) @map("approved_count") @db.UnsignedInt
+  submitRequirements     Json?         @map("submit_requirements")
+  claimRules             Json?         @map("claim_rules")
+  complianceRequirements String?       @map("compliance_requirements") @db.Text
+  dueAt                  DateTime      @map("due_at") @db.DateTime(3)
+  publishedAt            DateTime?     @map("published_at") @db.DateTime(3)
+  closedAt               DateTime?     @map("closed_at") @db.DateTime(3)
+  createdBy              BigInt        @map("created_by") @db.UnsignedBigInt
+  updatedBy              BigInt?       @map("updated_by") @db.UnsignedBigInt
+  version                Int           @default(1) @db.UnsignedInt
+  createdAt              DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt              DateTime      @updatedAt @map("updated_at") @db.DateTime(3)
+  organization           Organization  @relation(fields: [organizationId], references: [id])
+  fundProduct            FundProduct?  @relation(fields: [fundProductId], references: [id])
+  creator                User          @relation("TaskCreatedBy", fields: [createdBy], references: [id])
+  claims                 TaskClaim[]
+  submissions            TaskSubmission[]
+  reminders              TaskReminder[]
+
+  @@index([status, dueAt], map: "idx_tasks_status_due_at")
+  @@index([organizationId, status], map: "idx_tasks_organization_status")
+  @@index([platform, status], map: "idx_tasks_platform_status")
+  @@map("tasks")
+}
+
+model TaskClaim {
+  id          BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  taskId      BigInt           @map("task_id") @db.UnsignedBigInt
+  userId      BigInt           @map("user_id") @db.UnsignedBigInt
+  status      String           @default("PENDING_SUBMIT") @db.VarChar(32)
+  activeFlag  Int?             @default(1) @map("active_flag") @db.UnsignedTinyInt
+  claimedAt   DateTime         @default(now()) @map("claimed_at") @db.DateTime(3)
+  submittedAt DateTime?        @map("submitted_at") @db.DateTime(3)
+  reviewedAt  DateTime?        @map("reviewed_at") @db.DateTime(3)
+  reviewerId  BigInt?          @map("reviewer_id") @db.UnsignedBigInt
+  version     Int              @default(1) @db.UnsignedInt
+  rewardPoints Int?            @map("reward_points") @db.UnsignedInt
+  createdAt   DateTime         @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.DateTime(3)
+  task        Task             @relation(fields: [taskId], references: [id])
+  user        User             @relation(fields: [userId], references: [id])
+  submissions TaskSubmission[]
+
+  @@unique([taskId, userId, activeFlag], map: "uk_task_claims_active")
+  @@index([taskId, status], map: "idx_task_claims_task_status")
+  @@index([userId, status], map: "idx_task_claims_user_status")
+  @@map("task_claims")
+}
+
+model TaskSubmission {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  taskId        BigInt    @map("task_id") @db.UnsignedBigInt
+  claimId       BigInt    @map("claim_id") @db.UnsignedBigInt
+  userId        BigInt    @map("user_id") @db.UnsignedBigInt
+  submitVersion Int       @default(1) @map("submit_version") @db.UnsignedInt
+  content       Json?
+  textContent   String?   @map("text_content") @db.Text
+  linkUrl       String?   @map("link_url") @db.VarChar(1024)
+  status        String    @default("PENDING_REVIEW") @db.VarChar(32)
+  reviewComment String?   @map("review_comment") @db.Text
+  reviewedAt    DateTime? @map("reviewed_at") @db.DateTime(3)
+  reviewedBy    BigInt?   @map("reviewed_by") @db.UnsignedBigInt
+  submittedAt   DateTime  @default(now()) @map("submitted_at") @db.DateTime(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  task          Task      @relation(fields: [taskId], references: [id])
+  claim         TaskClaim @relation(fields: [claimId], references: [id])
+
+  @@index([claimId, createdAt], map: "idx_task_submissions_claim_created_at")
+  @@index([taskId, status], map: "idx_task_submissions_task_status")
+  @@map("task_submissions")
+}
+
+model TaskReminder {
+  id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  taskId      BigInt   @map("task_id") @db.UnsignedBigInt
+  senderId    BigInt   @map("sender_id") @db.UnsignedBigInt
+  recipientId BigInt?  @map("recipient_id") @db.UnsignedBigInt
+  message     String   @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  task        Task     @relation(fields: [taskId], references: [id])
+  sender      User     @relation("TaskReminderSender", fields: [senderId], references: [id])
+  recipient   User?    @relation("TaskReminderRecipient", fields: [recipientId], references: [id])
+
+  @@index([taskId, createdAt], map: "idx_task_reminders_task_created_at")
+  @@index([recipientId, createdAt], map: "idx_task_reminders_recipient_created_at")
+  @@map("task_reminders")
+}
+
+model UserPointAccount {
+  id              BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  userId          BigInt   @unique(map: "uk_point_accounts_user") @map("user_id") @db.UnsignedBigInt
+  availablePoints Int      @default(0) @map("available_points") @db.Int
+  frozenPoints    Int      @default(0) @map("frozen_points") @db.Int
+  withdrawnPoints Int      @default(0) @map("withdrawn_points") @db.Int
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@map("user_point_accounts")
+}
+
+model PointLedger {
+  id           BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  userId       BigInt   @map("user_id") @db.UnsignedBigInt
+  taskId       BigInt?  @map("task_id") @db.UnsignedBigInt
+  claimId      BigInt?  @map("claim_id") @db.UnsignedBigInt
+  entryType    String   @map("entry_type") @db.VarChar(32)
+  points       Int      @db.Int
+  balanceAfter Int      @map("balance_after") @db.Int
+  remark       String?  @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt], map: "idx_point_ledgers_user_created_at")
+  @@index([taskId, entryType], map: "idx_point_ledgers_task_type")
+  @@map("point_ledgers")
+}

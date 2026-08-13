@@ -1,0 +1,21 @@
+{
+  "name": "xlyq-fund-relay",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"npm run dev -w @xlyq/api\" \"npm run dev -w @xlyq/web\"",
+    "dev:api": "npm run dev -w @xlyq/api",
+    "dev:web": "npm run dev -w @xlyq/web",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "prisma:generate": "npm run prisma:generate -w @xlyq/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "typescript": "^5.9.0"
+  }
+}
