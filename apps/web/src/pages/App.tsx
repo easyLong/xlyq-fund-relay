@@ -44,6 +44,14 @@ function InlineIconText({ icon: Icon, children }: { icon: LucideIcon; children: 
   return <span className="inline-icon-text"><Icon size={12} />{children}</span>;
 }
 
+function withFundNamePrefix(title: string, fundName?: string | null) {
+  const cleanTitle = title.trim();
+  const cleanFundName = fundName?.trim();
+  if (!cleanFundName || !cleanTitle) return cleanTitle;
+  if (cleanTitle === cleanFundName || cleanTitle.startsWith(`${cleanFundName}｜`) || cleanTitle.startsWith(`${cleanFundName} - `) || cleanTitle.startsWith(`${cleanFundName}·`) || cleanTitle.startsWith(`${cleanFundName} `)) return cleanTitle;
+  return `${cleanFundName}｜${cleanTitle}`;
+}
+
 function readStoredAccount(): DemoAccount | undefined {
   const raw = window.localStorage.getItem('xlyq_account');
   if (!raw) return undefined;
@@ -751,9 +759,27 @@ function CreateTaskPanelV2({ demo, fundProducts, selectedFundProductId, onFundPr
   const [submitting, setSubmitting] = useState(false);
   const selectedFundProduct = fundProducts.find((item) => item.id === selectedFundProductId) ?? fundProducts[0] ?? { id: demo.fundProduct.id, name: demo.fundProduct.name, code: demo.fundProduct.code, organizationId: demo.organization.id, organizationName: demo.organization.name };
   const post = posts.find((item) => item.id === postId);
-  useEffect(() => { setPostId(posts[0]?.id ?? ''); setError(undefined); }, [selectedFundProductId, posts.length]);
-  const submit = async () => { if (!post) return setError('请先选择有效的基金任务'); if (submitting) return; const taskFundProduct = fundProducts.find((item) => item.id === post.fundProductId) ?? selectedFundProduct; setSubmitting(true); setError(undefined); try { const result = await onCreate({ title: post.taskName, description: post.posts.map((item) => item.content).join('\n\n'), originalText: post.posts.map((item) => item.content).join('\n\n'), taskType: 'CONTENT_PUBLISH', platform: post.platform, campaignName: post.taskName, organizationId: taskFundProduct.organizationId, fundProductId: taskFundProduct.id, fundTaskId: post.id, quota: post.postCount, dueAt: new Date(dueAt).toISOString() }); onCreated(result.data); } catch (reason) { setError(reason instanceof Error ? reason.message : '创建失败'); } finally { setSubmitting(false); } };
-  return <section className="modal-layer"><div className="modal-panel"><div className="detail-header"><div><div className="eyebrow">新建任务</div><h2>选择基金任务</h2></div><button className="icon-button" type="button" onClick={onClose}>×</button></div><label>基金公司 / 产品<select value={selectedFundProductId} onChange={(event) => onFundProductChange(event.target.value)}>{fundProducts.map((item) => <option value={item.id} key={item.id}>{item.organizationName}{item.name !== item.organizationName ? ` · ${item.name}` : ''}</option>)}</select></label><label>基金任务<select value={postId} onChange={(event) => setPostId(event.target.value)}><option value="">{loadingPosts ? '正在加载基金任务...' : '请选择基金任务'}</option>{posts.map((item) => <option value={item.id} key={item.id}>{item.taskName} · {item.platform} · {item.postCount} 个名额</option>)}</select></label>{post ? <section className="panel"><strong>{post.taskName}</strong><p>客户：{selectedFundProduct.organizationName}；平台：{post.platform}；将创建 1 个任务，名额 {post.postCount}</p>{post.posts.map((item, index) => <p key={item.id}>帖子 {index + 1}：{item.title}</p>)}</section> : <section className="panel empty-state">{loadingPosts ? '正在加载基金任务...' : `${selectedFundProduct.organizationName} 暂无已填报基金任务`}</section>}<label>截止时间<input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>{error ? <div className="form-error">{error}</div> : null}<button className="primary-action" type="button" disabled={pending || submitting || loadingPosts || !post} onClick={() => void submit()}><Plus size={17} />{submitting ? '创建中...' : '创建任务'}</button></div></section>;
+  const postIds = posts.map((item) => item.id).join('|');
+  const selectedFundName = selectedFundProduct.name || selectedFundProduct.organizationName;
+  const selectedPostTitle = post ? withFundNamePrefix(post.taskName, selectedFundName) : '';
+  useEffect(() => { setPostId(posts[0]?.id ?? ''); setError(undefined); }, [selectedFundProductId, postIds]);
+  const submit = async () => {
+    if (!post) return setError('请先选择有效的基金任务');
+    if (submitting) return;
+    const taskFundProduct = fundProducts.find((item) => item.id === post.fundProductId) ?? selectedFundProduct;
+    const taskTitle = withFundNamePrefix(post.taskName, taskFundProduct.name || taskFundProduct.organizationName);
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      const result = await onCreate({ title: taskTitle, description: post.posts.map((item) => item.content).join('\n\n'), originalText: post.posts.map((item) => item.content).join('\n\n'), taskType: 'CONTENT_PUBLISH', platform: post.platform, campaignName: post.taskName, organizationId: taskFundProduct.organizationId, fundProductId: taskFundProduct.id, fundTaskId: post.id, quota: post.postCount, dueAt: new Date(dueAt).toISOString() });
+      onCreated(result.data);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '创建失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return <section className="modal-layer"><div className="modal-panel"><div className="detail-header"><div><div className="eyebrow">新建任务</div><h2>选择基金任务</h2></div><button className="icon-button" type="button" onClick={onClose}>×</button></div><label>基金公司 / 产品<select value={selectedFundProductId} onChange={(event) => { setPostId(''); onFundProductChange(event.target.value); }}>{fundProducts.map((item) => <option value={item.id} key={item.id}>{item.organizationName}{item.name !== item.organizationName ? ` · ${item.name}` : ''}</option>)}</select></label><label>基金任务<select value={postId} onChange={(event) => setPostId(event.target.value)}><option value="">{loadingPosts ? '正在加载基金任务...' : '请选择基金任务'}</option>{posts.map((item) => <option value={item.id} key={item.id}>{withFundNamePrefix(item.taskName, selectedFundName)} · {item.platform} · {item.postCount} 个名额</option>)}</select></label>{post ? <section className="panel"><strong>{selectedPostTitle}</strong><p>客户：{selectedFundProduct.organizationName}；平台：{post.platform}；将创建 1 个运营任务，名额 {post.postCount}</p>{post.posts.map((item, index) => <p key={item.id}>帖子 {index + 1}：{item.title}</p>)}</section> : <section className="panel empty-state">{loadingPosts ? '正在加载基金任务...' : `${selectedFundProduct.organizationName} 暂无已填报基金任务，请先切换基金或让基金账号填报内容任务`}</section>}<label>截止时间<input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>{error ? <div className="form-error">{error}</div> : null}<button className="primary-action" type="button" disabled={pending || submitting || loadingPosts || !post} onClick={() => void submit()}><Plus size={17} />{submitting ? '创建中...' : '创建任务'}</button></div></section>;
 }
 
 function daysLeft(isoDate: string) { return Math.max(0, Math.ceil((new Date(isoDate).getTime() - Date.now()) / 86400000)); }
