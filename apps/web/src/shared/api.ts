@@ -3,9 +3,10 @@ import type { ApiResponse, CreateTaskInput, DashboardSummary, DemoAccount, DemoC
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   try {
     const token = typeof window !== 'undefined' ? window.localStorage.getItem('xlyq_session_token') : null;
+    const isFormData = typeof FormData !== 'undefined' && init?.body instanceof FormData;
     const response = await fetch(url, {
       headers: {
-        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(init?.body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       ...init,
@@ -130,6 +131,22 @@ export function updateSubmission(id: string, input: { userId: string; linkUrl: s
   return request<ApiResponse<{ id: string; status: string }>>(`/api/v1/task-submissions/${id}`, {
     method: 'PUT',
     body: JSON.stringify(input),
+  });
+}
+
+export type UploadedFileResult = {
+  url: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+};
+
+export function uploadSubmissionScreenshot(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request<ApiResponse<UploadedFileResult>>('/api/v1/uploads/submission-screenshots', {
+    method: 'POST',
+    body: formData,
   });
 }
 

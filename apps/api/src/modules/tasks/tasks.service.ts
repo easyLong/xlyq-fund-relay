@@ -113,9 +113,17 @@ export class TasksService {
     let where = baseWhere;
     if (isExecutor && viewerId) {
       const userId = BigInt(viewerId);
+      const claimedScopes = await this.prisma.taskClaim.findMany({
+        where: { userId, activeFlag: 1 },
+        select: { task: { select: { fundTaskId: true } } },
+      });
+      const claimedFundTaskIds = claimedScopes.map((claim) => claim.task.fundTaskId).filter((id): id is bigint => Boolean(id));
       where = {
         ...baseWhere,
-        claims: { none: { userId, activeFlag: 1 } },
+        AND: [
+          { claims: { none: { userId, activeFlag: 1 } } },
+          ...(claimedFundTaskIds.length > 0 ? [{ OR: [{ fundTaskId: null }, { fundTaskId: { notIn: claimedFundTaskIds } }] }] : []),
+        ],
       };
     }
     const skip = (pageNo - 1) * pageSize;
@@ -244,33 +252,42 @@ export class TasksService {
     };
 
     if (fundTask) {
-      const orderedPosts = [...fundTask.posts].sort((left, right) => Number(left.id - right.id));
-      const postText = orderedPosts
-        .map((post, index) => `帖子 ${index + 1}：${post.postTitle?.trim() || '未命名帖子'}\n${post.postContent?.trim() || ''}`.trim())
-        .join('\n\n');
-      const task = await this.prisma.task.create({
-        data: {
-          ...commonData,
-          title: withFundNamePrefix(fundTask.taskName, fundTask.fundProduct.name),
-          description: postText || input.description,
-          originalText: postText || input.originalText,
-          platform: fundTask.platform,
-          campaignName: fundTask.taskName,
-          fundTaskPostId: null,
-          quota: orderedPosts.length,
-          submitRequirements: {
-            note: '请按领取到的发布账号完成内容发布，并提交公开链接与截图。',
-            posts: orderedPosts.map((post, index) => ({
-              id: post.id.toString(),
-              index: index + 1,
-              title: post.postTitle?.trim() || `帖子 ${index + 1}`,
-              url: post.postUrl,
-            })),
+      return this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM fund_tasks WHERE id = ${fundTask.id} FOR UPDATE`;
+        const lockedFundTask = await tx.fundTask.findUnique({ where: { id: fundTask.id }, include: { fundProduct: true, posts: { where: { status: 'ACTIVE' } } } });
+        if (!lockedFundTask || lockedFundTask.status !== 'ACTIVE' || lockedFundTask.fundProductId !== BigInt(input.fundProductId ?? '0') || lockedFundTask.platform !== input.platform || lockedFundTask.posts.length === 0) {
+          throw new BadRequestException('所选基金任务无效，或没有有效帖子');
+        }
+        const existing = await tx.task.findFirst({ where: { fundTaskId: lockedFundTask.id }, include: taskInclude });
+        if (existing) return toTaskListItem(existing);
+        const orderedPosts = [...lockedFundTask.posts].sort((left, right) => Number(left.id - right.id));
+        const postText = orderedPosts
+          .map((post, index) => `帖子 ${index + 1}：${post.postTitle?.trim() || '未命名帖子'}\n${post.postContent?.trim() || ''}`.trim())
+          .join('\n\n');
+        const task = await tx.task.create({
+          data: {
+            ...commonData,
+            title: withFundNamePrefix(lockedFundTask.taskName, lockedFundTask.fundProduct.name),
+            description: postText || input.description,
+            originalText: postText || input.originalText,
+            platform: lockedFundTask.platform,
+            campaignName: lockedFundTask.taskName,
+            fundTaskPostId: null,
+            quota: orderedPosts.length,
+            submitRequirements: {
+              note: '请按领取到的发布账号完成内容发布，并提交公开链接与截图。',
+              posts: orderedPosts.map((post, index) => ({
+                id: post.id.toString(),
+                index: index + 1,
+                title: post.postTitle?.trim() || `帖子 ${index + 1}`,
+                url: post.postUrl,
+              })),
+            },
           },
-        },
-        include: taskInclude,
+          include: taskInclude,
+        });
+        return toTaskListItem(task);
       });
-      return toTaskListItem(task);
     }
 
     const task = await this.prisma.task.create({
@@ -372,45 +389,52 @@ export class TasksService {
       if (task.claimedCount >= task.quota) throw new ConflictException('任务名额已满');
       const executor = await tx.user.findUnique({ where: { id: userId }, select: { role: true, status: true } });
       if (!executor || executor.role !== 'EXECUTOR' || executor.status !== 'ACTIVE') throw new ConflictException('兼职账号不可领取任务');
-      const oldClaim = await tx.taskClaim.findFirst({ where: { taskId, userId, activeFlag: 1 } });
+      const taskScopeWhere = this.linkedTaskWhere(task);
+      if (task.fundTaskId) await tx.$queryRaw`SELECT id FROM fund_tasks WHERE id = ${task.fundTaskId} FOR UPDATE`;
+      const oldClaim = await tx.taskClaim.findFirst({ where: { userId, activeFlag: 1, task: taskScopeWhere } });
       if (oldClaim) throw new ConflictException('已领取过该任务');
       const accounts = await tx.executorAccount.findMany({
         where: {
           userId,
           platform: task.platform,
           status: 'ACTIVE',
-          claims: { none: { taskId, activeFlag: 1 } },
+          claims: { none: { activeFlag: 1, task: taskScopeWhere } },
         },
         orderBy: { id: 'asc' },
+        take: 1,
       });
       if (accounts.length === 0) throw new ConflictException(`请先完善${task.platform}发布账号信息，或该平台账号已领取过该任务`);
+      const account = accounts[0];
 
-      let claimCount = Math.min(accounts.length, Math.max(0, task.quota - task.claimedCount));
-      let reserved = { count: 0 };
-      while (claimCount > 0) {
-        reserved = await tx.task.updateMany({
-          where: {
-            id: taskId,
-            status: { in: [TASK_STATUS.PUBLISHED, TASK_STATUS.IN_PROGRESS] },
-            dueAt: { gt: new Date() },
-            claimedCount: { lte: task.quota - claimCount },
-          },
-          data: { claimedCount: { increment: claimCount }, status: TASK_STATUS.IN_PROGRESS },
-        });
-        if (reserved.count === 1) break;
-        claimCount -= 1;
-      }
-      if (reserved.count !== 1 || claimCount <= 0) throw new ConflictException('任务名额已满');
+      const lockedAccount = await tx.executorAccount.updateMany({
+        where: {
+          id: account.id,
+          userId,
+          platform: task.platform,
+          status: 'ACTIVE',
+        },
+        data: { updatedAt: new Date() },
+      });
+      if (lockedAccount.count !== 1) throw new ConflictException('发布账号状态已变化，请刷新后重试');
 
-      const selectedAccounts = accounts.slice(0, claimCount);
-      await tx.taskClaim.createMany({
-        data: selectedAccounts.map((account) => ({ taskId, userId, executorAccountId: account.id, rewardPoints: task.rewardPoints })),
+      const reserved = await tx.task.updateMany({
+        where: {
+          id: taskId,
+          status: { in: [TASK_STATUS.PUBLISHED, TASK_STATUS.IN_PROGRESS] },
+          dueAt: { gt: new Date() },
+          claimedCount: { lt: task.quota },
+        },
+        data: { claimedCount: { increment: 1 }, status: TASK_STATUS.IN_PROGRESS },
       });
-      const claims = await tx.taskClaim.findMany({
-        where: { taskId, userId, executorAccountId: { in: selectedAccounts.map((account) => account.id) }, activeFlag: 1 },
-        orderBy: { id: 'asc' },
+      if (reserved.count !== 1) throw new ConflictException('任务名额已满');
+
+      const created = await tx.taskClaim.createMany({
+        data: [{ taskId, userId, executorAccountId: account.id, rewardPoints: task.rewardPoints }],
+        skipDuplicates: true,
       });
-      return { ids: claims.map((claim) => claim.id.toString()), count: claims.length, status: CLAIM_STATUS.PENDING_SUBMIT, rewardPoints: task.rewardPoints };
+      if (created.count !== 1) throw new ConflictException('已领取过该任务');
+      const claim = await tx.taskClaim.findFirstOrThrow({ where: { taskId, userId, executorAccountId: account.id, activeFlag: 1 }, orderBy: { id: 'desc' } });
+      return { ids: [claim.id.toString()], count: 1, status: CLAIM_STATUS.PENDING_SUBMIT, rewardPoints: task.rewardPoints };
     });
   }
 
@@ -422,6 +446,12 @@ export class TasksService {
       if (claim.status !== CLAIM_STATUS.PENDING_SUBMIT && claim.status !== CLAIM_STATUS.REWORKING) {
         throw new ConflictException('当前状态不能提交');
       }
+      const now = new Date();
+      const transitioned = await tx.taskClaim.updateMany({
+        where: { id: claim.id, userId: claim.userId, activeFlag: 1, status: { in: [CLAIM_STATUS.PENDING_SUBMIT, CLAIM_STATUS.REWORKING] } },
+        data: { status: CLAIM_STATUS.PENDING_REVIEW, submittedAt: now, version: { increment: 1 } },
+      });
+      if (transitioned.count !== 1) throw new ConflictException('当前状态不能提交，请刷新后重试');
       const submission = await tx.taskSubmission.create({
         data: {
           taskId: claim.taskId,
@@ -434,16 +464,12 @@ export class TasksService {
           status: CLAIM_STATUS.PENDING_REVIEW,
         },
       });
-      await tx.taskClaim.update({
-        where: { id: claim.id },
-        data: { status: CLAIM_STATUS.PENDING_REVIEW, submittedAt: new Date(), version: { increment: 1 } },
-      });
       const operators = await tx.user.findMany({ where: { role: 'OPERATOR', status: 'ACTIVE' }, select: { id: true } });
       if (operators.length > 0) {
         await tx.notification.createMany({
           data: operators.map((operator) => ({
             recipientId: operator.id,
-            eventId: claim.taskId,
+            eventId: submission.id,
             templateCode: 'SUBMISSION_PENDING_REVIEW',
             title: '有新的任务待审核',
             content: `${claim.task.platform}任务已提交结果，请及时审核。`,
@@ -463,8 +489,9 @@ export class TasksService {
       if (![CLAIM_STATUS.PENDING_REVIEW, CLAIM_STATUS.REWORKING].includes(submission.status as typeof CLAIM_STATUS.PENDING_REVIEW)) {
         throw new ConflictException('当前提交状态不允许修改');
       }
-      const updated = await tx.taskSubmission.update({
-        where: { id },
+      const now = new Date();
+      const updatedSubmission = await tx.taskSubmission.updateMany({
+        where: { id, userId: submission.userId, status: { in: [CLAIM_STATUS.PENDING_REVIEW, CLAIM_STATUS.REWORKING] } },
         data: {
           linkUrl: input.linkUrl,
           textContent: input.textContent,
@@ -474,10 +501,13 @@ export class TasksService {
           reviewComment: null,
           reviewedAt: null,
           reviewedBy: null,
-          submittedAt: new Date(),
+          submittedAt: now,
         },
       });
-      await tx.taskClaim.update({ where: { id: submission.claimId }, data: { status: CLAIM_STATUS.PENDING_REVIEW, submittedAt: new Date(), version: { increment: 1 } } });
+      if (updatedSubmission.count !== 1) throw new ConflictException('提交状态已变化，请刷新后重试');
+      const updatedClaim = await tx.taskClaim.updateMany({ where: { id: submission.claimId, activeFlag: 1, status: { in: [CLAIM_STATUS.PENDING_REVIEW, CLAIM_STATUS.REWORKING] } }, data: { status: CLAIM_STATUS.PENDING_REVIEW, submittedAt: now, version: { increment: 1 } } });
+      if (updatedClaim.count !== 1) throw new ConflictException('领取状态已变化，请刷新后重试');
+      const updated = await tx.taskSubmission.findUniqueOrThrow({ where: { id } });
       return { id: updated.id.toString(), status: updated.status };
     });
   }
@@ -489,22 +519,34 @@ export class TasksService {
       if (!submission) throw new NotFoundException('提交记录不存在');
       if (submission.status !== CLAIM_STATUS.PENDING_REVIEW) throw new ConflictException('提交记录已审核');
       const status = input.approved ? CLAIM_STATUS.APPROVED : CLAIM_STATUS.REWORKING;
-      await tx.taskSubmission.update({ where: { id: submission.id }, data: { status, reviewComment: input.comment, reviewedAt: new Date(), reviewedBy: BigInt(input.reviewerId) } });
-      await tx.taskClaim.update({ where: { id: submission.claimId }, data: { status, reviewedAt: new Date(), reviewerId: BigInt(input.reviewerId) } });
+      const now = new Date();
+      const reviewedSubmission = await tx.taskSubmission.updateMany({
+        where: { id: submission.id, status: CLAIM_STATUS.PENDING_REVIEW },
+        data: { status, reviewComment: input.comment, reviewedAt: now, reviewedBy: BigInt(input.reviewerId) },
+      });
+      if (reviewedSubmission.count !== 1) throw new ConflictException('提交记录已审核，请刷新后查看');
+      const reviewedClaim = await tx.taskClaim.updateMany({
+        where: { id: submission.claimId, activeFlag: 1, status: CLAIM_STATUS.PENDING_REVIEW },
+        data: { status, reviewedAt: now, reviewerId: BigInt(input.reviewerId) },
+      });
+      if (reviewedClaim.count !== 1) throw new ConflictException('领取状态已变化，请刷新后查看');
       if (input.approved) {
-        const nextApprovedCount = submission.task.approvedCount + 1;
-        const completed = nextApprovedCount >= submission.task.quota;
-        await tx.task.update({
-          where: { id: submission.taskId },
-          data: {
-            approvedCount: { increment: 1 },
-            ...(completed ? { status: TASK_STATUS.COMPLETED, closedAt: new Date() } : {}),
-          },
+        const approvedTask = await tx.task.updateMany({
+          where: { id: submission.taskId, approvedCount: { lt: submission.task.quota } },
+          data: { approvedCount: { increment: 1 } },
         });
+        if (approvedTask.count !== 1) throw new ConflictException('任务已完成，不能继续审核通过');
+        const taskAfterApproval = await tx.task.findUniqueOrThrow({ where: { id: submission.taskId }, select: { approvedCount: true, quota: true, fundProductId: true, platform: true } });
+        const completedTask = taskAfterApproval.approvedCount >= taskAfterApproval.quota
+          ? await tx.task.updateMany({
+              where: { id: submission.taskId, status: { notIn: [TASK_STATUS.COMPLETED, TASK_STATUS.CLOSED] } },
+              data: { status: TASK_STATUS.COMPLETED, closedAt: now },
+            })
+          : { count: 0 };
         const account = await tx.userPointAccount.upsert({ where: { userId: submission.userId }, update: { availablePoints: { increment: submission.task.rewardPoints } }, create: { userId: submission.userId, availablePoints: submission.task.rewardPoints } });
         await tx.pointLedger.create({ data: { userId: submission.userId, taskId: submission.taskId, claimId: submission.claimId, entryType: 'TASK_REWARD', points: submission.task.rewardPoints, balanceAfter: account.availablePoints, remark: '任务审核通过奖励' } });
-        if (completed && submission.task.fundProductId) {
-          const fundUsers = await tx.user.findMany({ where: { role: 'FUND', status: 'ACTIVE', fundProductId: submission.task.fundProductId }, select: { id: true } });
+        if (completedTask.count === 1 && taskAfterApproval.fundProductId) {
+          const fundUsers = await tx.user.findMany({ where: { role: 'FUND', status: 'ACTIVE', fundProductId: taskAfterApproval.fundProductId }, select: { id: true } });
           if (fundUsers.length > 0) {
             await tx.notification.createMany({
               data: fundUsers.map((user) => ({
@@ -512,7 +554,7 @@ export class TasksService {
                 eventId: submission.taskId,
                 templateCode: 'FUND_TASK_COMPLETED',
                 title: '基金任务已完成',
-                content: `${submission.task.platform}任务已审核完成，可查看进度。`,
+                content: `${taskAfterApproval.platform}任务已审核完成，可查看进度。`,
               })),
               skipDuplicates: true,
             });
@@ -522,7 +564,7 @@ export class TasksService {
       await tx.notification.createMany({
         data: [{
           recipientId: submission.userId,
-          eventId: submission.taskId,
+          eventId: submission.id,
           templateCode: input.approved ? 'SUBMISSION_APPROVED' : 'SUBMISSION_REWORKING',
           title: input.approved ? '任务审核通过' : '任务需要补充',
           content: input.approved ? '你的任务已通过审核，积分已到账。' : input.comment || '请补充发布链接或截图后重新提交。',

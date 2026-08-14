@@ -38,10 +38,22 @@ export class AccountsService {
   }
 
   async disable(userId: string, accountId: string) {
-    const account = await this.prisma.executorAccount.findFirst({ where: { id: BigInt(accountId), userId: BigInt(userId) }, include: { claims: true } });
+    const account = await this.prisma.executorAccount.findFirst({ where: { id: BigInt(accountId), userId: BigInt(userId) } });
     if (!account) throw new NotFoundException('发布账号不存在');
-    if (account.claims.some((claim) => claim.activeFlag === 1 && ['PENDING_SUBMIT', 'PENDING_REVIEW', 'REWORKING'].includes(claim.status))) throw new ConflictException('该账号仍有进行中的任务');
-    await this.prisma.executorAccount.update({ where: { id: account.id }, data: { status: account.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' } });
+    if (account.status === 'ACTIVE') {
+      const updated = await this.prisma.executorAccount.updateMany({
+        where: {
+          id: account.id,
+          userId: BigInt(userId),
+          status: 'ACTIVE',
+          claims: { none: { activeFlag: 1, status: { in: ['PENDING_SUBMIT', 'PENDING_REVIEW', 'REWORKING'] } } },
+        },
+        data: { status: 'INACTIVE' },
+      });
+      if (updated.count !== 1) throw new ConflictException('该账号仍有进行中的任务');
+    } else {
+      await this.prisma.executorAccount.updateMany({ where: { id: account.id, userId: BigInt(userId), status: 'INACTIVE' }, data: { status: 'ACTIVE' } });
+    }
     return this.summary(userId);
   }
 }

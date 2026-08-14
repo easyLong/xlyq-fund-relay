@@ -57,6 +57,7 @@ export class FundPostsService {
     if (!existing) throw new NotFoundException('基金任务不存在');
     if (user.fundProductId !== existing.fundProductId) throw new UnauthorizedException('当前基金账号无权修改该任务');
     const task = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM fund_tasks WHERE id = ${existing.id} FOR UPDATE`;
       await tx.fundTaskPost.updateMany({ where: { fundTaskId: existing.id }, data: { status: 'INACTIVE' } });
       return tx.fundTask.update({ where: { id: existing.id }, data: { taskName: input.taskName.trim(), platform: input.platform, posts: { create: input.posts.map((post) => ({ postTitle: post.title.trim(), postContent: post.content.trim(), postUrl: post.url?.trim() || null, platform: input.platform, taskName: input.taskName.trim(), fundProductId: existing.fundProductId, createdBy: BigInt(userId) })) } }, include: { posts: { where: { status: 'ACTIVE' }, orderBy: { id: 'asc' } } } });
     });

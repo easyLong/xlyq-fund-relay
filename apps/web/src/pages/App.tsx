@@ -28,6 +28,7 @@ import {
   unpublishTask,
   updateExecutorAccount,
   updateSubmission,
+  uploadSubmissionScreenshot,
 } from '../shared/api';
 
 type Role = 'operator' | 'user' | 'fund';
@@ -593,12 +594,25 @@ function CleanTaskDetailPanel({ detail, selectedClaim, accountSummary, actionPen
 }
 
 function CleanScreenshotPicker({ screenshots, onChange }: { screenshots: string[]; onChange: (items: string[]) => void }) {
-  const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const handleFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []).slice(0, 3 - screenshots.length);
-    Promise.all(files.map((file) => new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file); }))).then((items) => onChange([...screenshots, ...items]));
     event.target.value = '';
+    if (!files.length || uploading) return;
+    setUploading(true);
+    setError(undefined);
+    try {
+      const uploaded = await Promise.all(files.map((file) => uploadSubmissionScreenshot(file)));
+      onChange([...screenshots, ...uploaded.map((item) => item.data.url)]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '截图上传失败，请稍后重试');
+    } finally {
+      setUploading(false);
+    }
   };
-  return <div className="clean-screenshot-picker"><div className="clean-image-grid">{screenshots.map((src, index) => <div className="clean-image-item" key={src}><img src={src} alt={`发布截图 ${index + 1}`} /><button type="button" aria-label="删除截图" onClick={() => onChange(screenshots.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={14} /></button></div>)}{screenshots.length < 3 ? <label className="clean-image-add"><ImagePlus size={18} /><span>添加截图</span><input type="file" accept="image/*" multiple onChange={handleFiles} /></label> : null}</div><small>至少 1 张，最多 3 张</small></div>;
+  return <div className="clean-screenshot-picker"><div className="clean-image-grid">{screenshots.map((src, index) => <div className="clean-image-item" key={src}><img src={src} alt={`发布截图 ${index + 1}`} /><button type="button" aria-label="删除截图" onClick={() => onChange(screenshots.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={14} /></button></div>)}{screenshots.length < 3 ? <label className={`clean-image-add${uploading ? ' uploading' : ''}`}><ImagePlus size={18} /><span>{uploading ? '上传中' : '添加截图'}</span><input type="file" accept="image/*" multiple disabled={uploading} onChange={handleFiles} /></label> : null}</div><small>至少 1 张，最多 3 张；单张不超过 5MB</small>{error ? <div className="form-error compact-form-error">{error}</div> : null}</div>;
 }
 
 function OperatorTaskDetailPage({ detail, actionPending, onAction, onClose }: { detail: TaskDetail; actionPending: boolean; onAction: (input: { kind: ActionKind; taskId?: string; submissionId?: string }) => void; onClose: () => void }) {
@@ -662,13 +676,25 @@ function TaskDetailPanel({ role, detail, selectedClaim, pendingSubmission, actio
 }
 
 function ScreenshotPicker({ screenshots, onChange }: { screenshots: string[]; onChange: (items: string[]) => void }) {
-  const handleFiles = (event: ChangeEvent<HTMLInputElement>) => {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const handleFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []).slice(0, 3 - screenshots.length);
-    if (!files.length) return;
-    Promise.all(files.map((file) => new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file); }))).then((items) => onChange([...screenshots, ...items]));
     event.target.value = '';
+    if (!files.length || uploading) return;
+    setUploading(true);
+    setError(undefined);
+    try {
+      const uploaded = await Promise.all(files.map((file) => uploadSubmissionScreenshot(file)));
+      onChange([...screenshots, ...uploaded.map((item) => item.data.url)]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '截图上传失败，请稍后重试');
+    } finally {
+      setUploading(false);
+    }
   };
-  return <div className="screenshot-field"><div className="field-label"><span>发布截图</span><small>至少 1 张，最多 3 张</small></div><div className="screenshot-grid">{screenshots.map((src, index) => <div className="screenshot-thumb" key={src}><img src={src} alt={`发布截图 ${index + 1}`} /><button type="button" aria-label="删除截图" onClick={() => onChange(screenshots.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={14} /></button></div>)}{screenshots.length < 3 ? <label className="screenshot-add"><ImagePlus size={20} /><span>添加截图</span><input type="file" accept="image/*" multiple onChange={handleFiles} /></label> : null}</div></div>;
+  return <div className="screenshot-field"><div className="field-label"><span>发布截图</span><small>至少 1 张，最多 3 张；单张不超过 5MB</small></div><div className="screenshot-grid">{screenshots.map((src, index) => <div className="screenshot-thumb" key={src}><img src={src} alt={`发布截图 ${index + 1}`} /><button type="button" aria-label="删除截图" onClick={() => onChange(screenshots.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={14} /></button></div>)}{screenshots.length < 3 ? <label className={`screenshot-add${uploading ? ' uploading' : ''}`}><ImagePlus size={20} /><span>{uploading ? '上传中' : '添加截图'}</span><input type="file" accept="image/*" multiple disabled={uploading} onChange={handleFiles} /></label> : null}</div>{error ? <div className="form-error compact-form-error">{error}</div> : null}</div>;
 }
 
 function FlowStep({ done, label }: { done: boolean; label: string }) { return <span className={done ? 'flow-step done' : 'flow-step'}><i />{label}</span>; }

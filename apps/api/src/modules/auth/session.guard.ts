@@ -29,6 +29,9 @@ export class SessionGuard implements CanActivate {
     if (path.includes('/executor-accounts') || path.includes('/point-accounts/') || path.includes('/users/')) {
       if (user.role !== 'EXECUTOR') throw new UnauthorizedException('仅兼职角色可访问该资源');
     }
+    if (path.includes('/uploads/submission-screenshots') && user.role !== 'EXECUTOR') {
+      throw new UnauthorizedException('Only executor users can upload submission screenshots');
+    }
     if (path.includes('/fund-posts')) {
       if (method === 'GET' && !['OPERATOR', 'FUND'].includes(user.role)) throw new UnauthorizedException('仅运营或基金角色可查看帖子');
       if (method !== 'GET' && user.role !== 'FUND') throw new UnauthorizedException('仅基金角色可维护帖子');
