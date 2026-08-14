@@ -23,6 +23,13 @@ type TaskWithRelations = {
     name: string;
     code: string | null;
   } | null;
+  fundTaskPost?: {
+    id: bigint;
+    taskName: string;
+    platform: string;
+    postTitle: string | null;
+    postUrl: string | null;
+  } | null;
 };
 
 export function toTaskListItem(task: TaskWithRelations): TaskListItem {
@@ -49,6 +56,9 @@ export function toTaskListItem(task: TaskWithRelations): TaskListItem {
           name: task.fundProduct.name,
           code: task.fundProduct.code,
         }
+      : null,
+    fundTaskPost: task.fundTaskPost
+      ? { id: task.fundTaskPost.id.toString(), taskName: task.fundTaskPost.taskName, platform: task.fundTaskPost.platform, postTitle: task.fundTaskPost.postTitle, postUrl: task.fundTaskPost.postUrl }
       : null,
   };
 }

@@ -534,6 +534,166 @@ h1 {
   line-height: 1.4;
 }
 
+.account-manager {
+  padding: 16px;
+}
+
+.account-rows {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.account-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(90px, .8fr) minmax(120px, 1.2fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 11px;
+  border: 1px solid #dce6e2;
+  border-radius: 8px;
+  background: #f8fbfa;
+}
+
+.account-row strong {
+  color: #25363b;
+  font-size: 13px;
+}
+
+.account-row span,
+.account-row small {
+  overflow: hidden;
+  color: #687780;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-row em {
+  padding: 3px 7px;
+  border-radius: 99px;
+  background: #e4f5ed;
+  color: #198754;
+  font-size: 11px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.account-edit-button {
+  border: 0;
+  background: transparent;
+  color: #237a63;
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.account-password-editor {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: -8px 0 18px;
+}
+
+.account-password-editor input {
+  flex: 1;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid #d4dfdc;
+  border-radius: 7px;
+  font: inherit;
+}
+
+.account-password-editor .primary-action,
+.account-password-editor .secondary-action {
+  min-height: 38px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.account-add-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.account-add-heading strong {
+  color: #25363b;
+  font-size: 14px;
+}
+
+.account-add-heading span {
+  color: #829097;
+  font-size: 11px;
+}
+
+.account-add-row {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr 1.3fr 1.1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.account-add-row select,
+.account-add-row input {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid #d4dfdc;
+  border-radius: 7px;
+  background: #fff;
+  color: #25363b;
+  font: inherit;
+}
+
+.account-add-row .primary-action {
+  min-height: 40px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .account-row {
+    grid-template-columns: minmax(100px, 1fr) auto;
+  }
+
+  .account-row small {
+    grid-column: 1 / 2;
+  }
+
+  .account-row em {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .account-edit-button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .account-add-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .account-add-row input:last-of-type,
+  .account-add-row .primary-action {
+    grid-column: 1 / -1;
+  }
+
+  .account-password-editor {
+    flex-wrap: wrap;
+  }
+
+  .account-password-editor input,
+  .account-password-editor .primary-action,
+  .account-password-editor .secondary-action {
+    flex: 1 1 100%;
+  }
+}
+
 .queue-panel {
   padding-bottom: 10px;
 }

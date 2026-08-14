@@ -1,9 +1,13 @@
-import type { ApiResponse, CreateTaskInput, DashboardSummary, DemoAccount, DemoContext, HealthStatus, MyTaskItem, PageResponse, PointSummary, TaskDetail, TaskListItem } from '@xlyq/shared';
+import type { ApiResponse, CreateTaskInput, DashboardSummary, DemoAccount, DemoContext, ExecutorAccount, ExecutorAccountSummary, FundTask, FundTaskPost, FundTaskProgress, HealthStatus, MyTaskItem, PageResponse, PointSummary, TaskDetail, TaskListItem } from '@xlyq/shared';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   try {
+    const token = typeof window !== 'undefined' ? window.localStorage.getItem('xlyq_session_token') : null;
     const response = await fetch(url, {
-      headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: {
+        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       ...init,
     });
     if (!response.ok) {
@@ -24,6 +28,10 @@ export function getHealth() {
 
 export function getOperatorDashboard() {
   return request<ApiResponse<DashboardSummary>>('/api/v1/dashboards/operator');
+}
+
+export function getFundDashboard(fundProductId: string) {
+  return request<ApiResponse<import('@xlyq/shared').FundDashboardSummary>>(`/api/v1/dashboards/fund?fundProductId=${encodeURIComponent(fundProductId)}`);
 }
 
 export function getTasks() {
@@ -112,4 +120,28 @@ export function updateSubmission(id: string, input: { userId: string; linkUrl: s
     method: 'PUT',
     body: JSON.stringify(input),
   });
+}
+
+export function getExecutorAccounts(userId: string) {
+  return request<ApiResponse<ExecutorAccountSummary>>(`/api/v1/users/${userId}/executor-accounts`);
+}
+
+export function createExecutorAccount(userId: string, input: { platform: string; accountName: string; accountUid?: string; password?: string }) {
+  return request<ApiResponse<ExecutorAccount>>(`/api/v1/users/${userId}/executor-accounts`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateExecutorAccount(userId: string, accountId: string, input: { platform: string; accountName: string; accountUid?: string; password?: string }) {
+  return request<ApiResponse<ExecutorAccount>>(`/api/v1/users/${userId}/executor-accounts/${accountId}`, { method: 'PUT', body: JSON.stringify(input) });
+}
+
+export function getFundPosts(fundProductId: string) {
+  return request<ApiResponse<FundTask[]>>(`/api/v1/fund-posts?fundProductId=${encodeURIComponent(fundProductId)}`);
+}
+
+export function getFundTaskProgress(userId: string, fundProductId: string) {
+  return request<ApiResponse<FundTaskProgress[]>>(`/api/v1/fund-posts/progress?userId=${encodeURIComponent(userId)}&fundProductId=${encodeURIComponent(fundProductId)}`);
+}
+
+export function createFundPost(userId: string, fundProductId: string, input: { taskName: string; platform: string; posts: Array<{ title: string; content: string; url?: string }> }) {
+  return request<ApiResponse<FundTask>>(`/api/v1/fund-posts?userId=${encodeURIComponent(userId)}&fundProductId=${encodeURIComponent(fundProductId)}`, { method: 'POST', body: JSON.stringify(input) });
 }

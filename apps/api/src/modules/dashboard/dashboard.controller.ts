@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ok } from '../../common/response';
 import { DashboardService } from './dashboard.service';
 
@@ -9,5 +9,10 @@ export class DashboardController {
   @Get('operator')
   async operator() {
     return ok(await this.dashboardService.operatorSummary());
+  }
+
+  @Get('fund')
+  async fund(@Query('fundProductId') fundProductId: string) {
+    return ok(await this.dashboardService.fundSummary(fundProductId));
   }
 }

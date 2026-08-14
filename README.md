@@ -36,4 +36,13 @@ node scripts/with-database-url.mjs prisma db execute --schema prisma/schema.pris
 
 远端数据库已有历史业务表，部署时不要对该库执行 `prisma db push`，避免删除未纳入本地 MVP schema 的旧表。
 
+账号与基金帖子功能需要执行新增迁移：
+
+```bash
+cd apps/api
+node scripts/with-database-url.mjs prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260813_executor_accounts_and_fund_posts.sql
+```
+
+兼职者需要先在“我的”中维护各平台发布账号；每个启用账号可承载一个对应平台的进行中任务。基金人员使用 `fund1 / 123456` 登录，在首页填报任务名称和帖子，运营创建任务时选择对应帖子配置。
+
 浏览器打开 `http://localhost:<WEB_PORT>`；手机和电脑不在同一设备时使用电脑局域网 IP 加端口访问。

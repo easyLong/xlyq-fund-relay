@@ -9,6 +9,23 @@ export const TASK_STATUS = {
   CLOSED: 'CLOSED',
 } as const;
 
+export const PLATFORM_OPTIONS = [
+  '小红书',
+  '微信公众号',
+  '抖音',
+  '微博',
+  '招商银行',
+  '建设银行',
+  '蚂蚁财富',
+  '理财通',
+  '天天基金',
+  '京东金融',
+  '雪球',
+  '同花顺',
+] as const;
+
+export type Platform = (typeof PLATFORM_OPTIONS)[number];
+
 export type TaskStatus = (typeof TASK_STATUS)[keyof typeof TASK_STATUS];
 
 export const CLAIM_STATUS = {
@@ -83,6 +100,13 @@ export interface TaskListItem {
     name: string;
     code?: string | null;
   } | null;
+  fundTaskPost?: {
+    id: string;
+    taskName: string;
+    platform: string;
+    postTitle?: string | null;
+    postUrl?: string | null;
+  } | null;
 }
 
 export interface DashboardSummary {
@@ -145,22 +169,100 @@ export interface CreateTaskInput {
   fundProductId?: string;
   quota: number;
   dueAt: string;
+  fundTaskPostId?: string;
+  fundTaskId?: string;
 }
 
 export interface DemoAccount {
   id: string;
   name: string;
   username: string;
-  role: 'operator' | 'executor';
+  role: 'operator' | 'executor' | 'fund';
   availablePoints?: number;
+  token?: string;
 }
 
 export interface DemoContext {
   operator: DemoAccount;
   executors: Array<DemoAccount & { availablePoints: number }>;
   executor: DemoAccount & { availablePoints: number };
+  fund: DemoAccount;
   organization: { id: string; name: string };
   fundProduct: { id: string; name: string; code: string };
+}
+
+export interface ExecutorAccount {
+  id: string;
+  platform: string;
+  accountName: string;
+  accountUid?: string | null;
+  status: string;
+  passwordSet: boolean;
+}
+
+export interface ExecutorAccountSummary {
+  accounts: ExecutorAccount[];
+  accountCount: number;
+  activeTaskCount: number;
+  availableTaskSlots: number;
+}
+
+export interface FundTaskPost {
+  id: string;
+  fundProductId: string;
+  taskName: string;
+  platform: string;
+  postTitle?: string | null;
+  postContent?: string | null;
+  postUrl?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FundTask {
+  id: string;
+  fundProductId: string;
+  taskName: string;
+  platform: string;
+  status: string;
+  postCount: number;
+  posts: Array<{ id: string; title: string; content: string; url?: string | null; platform: string }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FundDashboardSummary {
+  taskCount: number;
+  postCount: number;
+  claimedCount: number;
+  submittedCount: number;
+  approvedCount: number;
+  pendingReviewCount: number;
+  tasks: Array<{
+    id: string;
+    taskName: string;
+    platform: string;
+    postCount: number;
+    claimedCount: number;
+    submittedCount: number;
+    approvedCount: number;
+    pendingReviewCount: number;
+    completionRate: number;
+  }>;
+}
+
+export interface FundTaskProgress {
+  id: string;
+  taskName: string;
+  platform: string;
+  postCount: number;
+  publishedTaskCount: number;
+  claimedCount: number;
+  submittedCount: number;
+  approvedCount: number;
+  completionRate: number;
+  status: string;
 }
 
 export interface TaskDetail extends TaskListItem {

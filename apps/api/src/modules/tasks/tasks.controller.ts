@@ -23,8 +23,10 @@ export class TasksController {
     @Query('pageNo', new DefaultValuePipe(1), ParseIntPipe) pageNo: number,
     @Query('pageSize', new DefaultValuePipe(20), ParseIntPipe) pageSize: number,
   ) {
-    const result = await this.tasksService.list(pageNo, pageSize);
-    return page(result.rows, pageNo, pageSize, result.total);
+    const safePageNo = Math.min(Math.max(pageNo, 1), 100000);
+    const safePageSize = Math.min(Math.max(pageSize, 1), 100);
+    const result = await this.tasksService.list(safePageNo, safePageSize);
+    return page(result.rows, safePageNo, safePageSize, result.total);
   }
 
   @Get('task-market')
@@ -34,8 +36,10 @@ export class TasksController {
     @Query('viewerId') viewerId?: string,
     @Query('viewerRole') viewerRole?: string,
   ) {
-    const result = await this.tasksService.market(pageNo, pageSize, viewerId, viewerRole);
-    return page(result.rows, pageNo, pageSize, result.total);
+    const safePageNo = Math.min(Math.max(pageNo, 1), 100000);
+    const safePageSize = Math.min(Math.max(pageSize, 1), 100);
+    const result = await this.tasksService.market(safePageNo, safePageSize, viewerId, viewerRole);
+    return page(result.rows, safePageNo, safePageSize, result.total);
   }
 
   @Get('tasks/:id')

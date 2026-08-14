@@ -12,6 +12,7 @@ import { toTaskListItem } from './tasks.mapper';
 const taskInclude = {
   organization: true,
   fundProduct: true,
+  fundTaskPost: true,
 } as const;
 
 @Injectable()
@@ -152,6 +153,10 @@ export class TasksService {
   }
 
   async create(input: CreateTaskDto) {
+    const dueAt = new Date(input.dueAt);
+    if (Number.isNaN(dueAt.getTime()) || dueAt <= new Date()) {
+      throw new BadRequestException('截止时间必须晚于当前时间');
+    }
     const operator = await this.prisma.user.findFirst({
       where: { status: 'ACTIVE' },
       orderBy: { id: 'asc' },
@@ -160,24 +165,53 @@ export class TasksService {
       throw new BadRequestException('请先初始化至少一个用户，才能创建任务');
     }
 
+    if (input.fundTaskPostId) {
+      const post = await this.prisma.fundTaskPost.findUnique({ where: { id: BigInt(input.fundTaskPostId) } });
+      if (!post || post.status !== 'ACTIVE' || post.fundProductId !== BigInt(input.fundProductId ?? '0') || post.platform !== input.platform) {
+        throw new BadRequestException('所选基金帖子配置无效或与任务平台不一致');
+      }
+    }
+
+    const fundTask = input.fundTaskId ? await this.prisma.fundTask.findUnique({ where: { id: BigInt(input.fundTaskId) }, include: { posts: { where: { status: 'ACTIVE' } } } }) : null;
+    if (input.fundTaskId && (!fundTask || fundTask.status !== 'ACTIVE' || fundTask.fundProductId !== BigInt(input.fundProductId ?? '0') || fundTask.platform !== input.platform || fundTask.posts.length === 0)) {
+      throw new BadRequestException('所选基金任务无效，或没有有效帖子');
+    }
+
+    const commonData = {
+      description: input.description,
+      originalText: input.originalText,
+      taskType: input.taskType,
+      platform: input.platform,
+      campaignName: input.campaignName,
+      organizationId: BigInt(input.organizationId),
+      fundProductId: input.fundProductId ? BigInt(input.fundProductId) : null,
+      fundTaskId: input.fundTaskId ? BigInt(input.fundTaskId) : null,
+      rewardPoints: 10,
+      dueAt,
+      createdBy: operator.id,
+    };
+
+    if (fundTask) {
+      const tasks = await this.prisma.$transaction(fundTask.posts.map((post, index) => this.prisma.task.create({
+        data: {
+          ...commonData,
+          title: `${fundTask.taskName} · ${post.postTitle?.trim() || `帖子 ${index + 1}`}`,
+          description: post.postContent?.trim() || input.description,
+          originalText: post.postContent?.trim() || input.originalText,
+          platform: post.platform,
+          campaignName: fundTask.taskName,
+          fundTaskPostId: post.id,
+          quota: 1,
+        },
+        include: taskInclude,
+      })));
+      return toTaskListItem(tasks[0]);
+    }
+
     const task = await this.prisma.task.create({
-      data: {
-        title: input.title,
-        description: input.description,
-        originalText: input.originalText,
-        taskType: input.taskType,
-        platform: input.platform,
-        campaignName: input.campaignName,
-        organizationId: BigInt(input.organizationId),
-        fundProductId: input.fundProductId ? BigInt(input.fundProductId) : null,
-        quota: input.quota,
-        rewardPoints: 10,
-        dueAt: new Date(input.dueAt),
-        createdBy: operator.id,
-      },
+      data: { ...commonData, title: input.title, fundTaskPostId: input.fundTaskPostId ? BigInt(input.fundTaskPostId) : null, quota: input.quota },
       include: taskInclude,
     });
-
     return toTaskListItem(task);
   }
 
@@ -229,10 +263,15 @@ export class TasksService {
       }
       if (task.dueAt <= new Date()) throw new ConflictException('任务已截止');
       if (task.claimedCount >= task.quota) throw new ConflictException('任务名额已满');
+      const executor = await tx.user.findUnique({ where: { id: userId }, select: { role: true, status: true } });
+      if (!executor || executor.role !== 'EXECUTOR' || executor.status !== 'ACTIVE') throw new ConflictException('兼职账号不可领取任务');
       const oldClaim = await tx.taskClaim.findFirst({ where: { taskId, userId, activeFlag: 1 } });
       if (oldClaim) throw new ConflictException('你已经领取过该任务');
+      const activeStatuses = [CLAIM_STATUS.PENDING_SUBMIT, CLAIM_STATUS.PENDING_REVIEW, CLAIM_STATUS.REWORKING];
+      const account = await tx.executorAccount.findFirst({ where: { userId, platform: task.platform, status: 'ACTIVE', claims: { none: { activeFlag: 1, status: { in: activeStatuses } } } }, orderBy: { id: 'asc' } });
+      if (!account) throw new ConflictException(`请先完善${task.platform}账号信息，或当前该平台账号都已有进行中的任务`);
       const claim = await tx.taskClaim.create({
-        data: { taskId, userId, rewardPoints: task.rewardPoints },
+        data: { taskId, userId, executorAccountId: account.id, rewardPoints: task.rewardPoints },
       });
       await tx.task.update({
         where: { id: taskId },

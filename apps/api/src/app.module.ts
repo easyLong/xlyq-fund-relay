@@ -6,6 +6,8 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { DemoModule } from './modules/demo/demo.module';
 import { PointsModule } from './modules/points/points.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AccountsModule } from './modules/accounts/accounts.module';
+import { FundPostsModule } from './modules/fund-posts/fund-posts.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { AuthModule } from './modules/auth/auth.module';
     DemoModule,
     PointsModule,
     AuthModule,
+    AccountsModule,
+    FundPostsModule,
   ],
 })
 export class AppModule {}

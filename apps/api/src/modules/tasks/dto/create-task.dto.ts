@@ -1,4 +1,5 @@
-import { IsDateString, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { PLATFORM_OPTIONS } from '@xlyq/shared';
 
 export class CreateTaskDto {
   @IsString()
@@ -16,6 +17,7 @@ export class CreateTaskDto {
   taskType!: string;
 
   @IsString()
+  @IsIn([...PLATFORM_OPTIONS])
   platform!: string;
 
   @IsOptional()
@@ -28,6 +30,14 @@ export class CreateTaskDto {
   @IsOptional()
   @IsString()
   fundProductId?: string;
+
+  @IsOptional()
+  @IsString()
+  fundTaskPostId?: string;
+
+  @IsOptional()
+  @IsString()
+  fundTaskId?: string;
 
   @IsInt()
   @Min(1)

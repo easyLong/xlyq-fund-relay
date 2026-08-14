@@ -34,6 +34,11 @@ export class DemoService {
       update: { displayName: '兼职执行员 3', passwordHash: hashPassword('123456'), role: 'EXECUTOR', status: 'ACTIVE' },
       create: { username: 'staff3', displayName: '兼职执行员 3', passwordHash: hashPassword('123456'), role: 'EXECUTOR', status: 'ACTIVE' },
     });
+    const fund = await this.prisma.user.upsert({
+      where: { username: 'fund1' },
+      update: { displayName: '基金内容负责人', passwordHash: hashPassword('123456'), role: 'FUND', status: 'ACTIVE' },
+      create: { username: 'fund1', displayName: '基金内容负责人', passwordHash: hashPassword('123456'), role: 'FUND', status: 'ACTIVE' },
+    });
     await this.prisma.user.updateMany({
       where: { username: { in: ['demo-operator', 'demo-executor', 'demo-executor-2', 'demo-executor-3'] } },
       data: { status: 'INACTIVE' },
@@ -64,6 +69,12 @@ export class DemoService {
       update: {},
       create: { userId: executorThree.id },
     });
+    if (await this.prisma.executorAccount.count({ where: { userId: executor.id } }) === 0) {
+      await this.prisma.executorAccount.createMany({ data: [
+        { userId: executor.id, platform: '小红书', accountName: '演示小红书主账号', accountUid: 'demo-xhs-001' },
+        { userId: executor.id, platform: '抖音', accountName: '演示抖音账号', accountUid: 'demo-douyin-001' },
+      ] });
+    }
 
     const existingTask = await this.prisma.task.findFirst({
       where: { organizationId: organization.id, title: '月度基金内容种草任务' },
@@ -97,6 +108,7 @@ export class DemoService {
     const accountFor = (userId: bigint) => accounts.find((account) => account.userId === userId)?.availablePoints ?? 0;
     return {
       operator: { id: operator.id.toString(), name: operator.displayName, username: operator.username ?? 'admin', role: 'operator' as const },
+      fund: { id: fund.id.toString(), name: fund.displayName, username: fund.username ?? 'fund1', role: 'fund' as const },
       executor: {
         id: executor.id.toString(),
         name: executor.displayName,

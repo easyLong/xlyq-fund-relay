@@ -1,7 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import type { DemoAccount } from '@xlyq/shared';
 import { PrismaService } from '../prisma/prisma.service';
-import { hashPassword } from './password';
+import { verifyPassword } from './password';
+import { issueSessionToken } from './session';
 
 @Injectable()
 export class AuthService {
@@ -9,15 +10,17 @@ export class AuthService {
 
   async login(username: string, password: string): Promise<DemoAccount> {
     const user = await this.prisma.user.findUnique({ where: { username } });
-    if (!user || user.status !== 'ACTIVE' || !user.passwordHash || user.passwordHash !== hashPassword(password)) {
+    if (!user || user.status !== 'ACTIVE' || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
       throw new UnauthorizedException('账号或密码错误');
     }
 
+    const role = user.role === 'OPERATOR' ? 'operator' : user.role === 'FUND' ? 'fund' : 'executor';
     return {
       id: user.id.toString(),
       name: user.displayName,
       username: user.username ?? username,
-      role: user.role === 'OPERATOR' ? 'operator' : 'executor',
+      role,
+      token: issueSessionToken(user.id.toString(), user.role as 'OPERATOR' | 'EXECUTOR' | 'FUND'),
     };
   }
 }

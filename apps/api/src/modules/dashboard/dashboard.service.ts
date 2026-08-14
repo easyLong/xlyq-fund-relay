@@ -103,4 +103,20 @@ export class DashboardService {
       customerSnapshot,
     };
   }
+
+  async fundSummary(fundProductId: string) {
+    const rows = await this.prisma.fundTask.findMany({
+      where: { fundProductId: BigInt(fundProductId), status: 'ACTIVE' },
+      include: { posts: { where: { status: 'ACTIVE' } }, tasks: { select: { claimedCount: true, approvedCount: true, claims: { select: { status: true } }, submissions: { select: { id: true } } } } },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const tasks = rows.map((row) => {
+      const claimedCount = row.tasks.reduce((sum, task) => sum + task.claimedCount, 0);
+      const approvedCount = row.tasks.reduce((sum, task) => sum + task.approvedCount, 0);
+      const submittedCount = row.tasks.reduce((sum, task) => sum + task.submissions.length, 0);
+      const pendingReviewCount = row.tasks.reduce((sum, task) => sum + task.claims.filter((claim) => claim.status === CLAIM_STATUS.PENDING_REVIEW).length, 0);
+      return { id: row.id.toString(), taskName: row.taskName, platform: row.platform, postCount: row.posts.length, claimedCount, submittedCount, approvedCount, pendingReviewCount, completionRate: claimedCount ? Math.round((approvedCount / claimedCount) * 100) : 0 };
+    });
+    return { taskCount: tasks.length, postCount: tasks.reduce((sum, task) => sum + task.postCount, 0), claimedCount: tasks.reduce((sum, task) => sum + task.claimedCount, 0), submittedCount: tasks.reduce((sum, task) => sum + task.submittedCount, 0), approvedCount: tasks.reduce((sum, task) => sum + task.approvedCount, 0), pendingReviewCount: tasks.reduce((sum, task) => sum + task.pendingReviewCount, 0), tasks };
+  }
 }
