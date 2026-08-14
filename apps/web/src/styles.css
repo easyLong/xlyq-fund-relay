@@ -1499,6 +1499,7 @@ h1 {
 }
 
 .clean-task-overview > h3 {
+  display: none;
   color: #25363b;
   font-weight: 800;
 }
@@ -1956,6 +1957,224 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+.original-text-locked {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px dashed #c8d8d2;
+  border-radius: 7px;
+  background: #f8fbfa;
+  color: #829097;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.task-title-block {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #dce6e2;
+  border-left: 3px solid #2b806b;
+  border-radius: 7px;
+  background: #fbfdfc;
+}
+
+.task-title-block > div,
+.original-text-block > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-title-block strong {
+  color: #1f6e5b;
+  font-size: 12px;
+}
+
+.task-title-block p {
+  color: #25363b;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.copy-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid #b9d8cd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f6e5b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.copy-button:active {
+  background: #eff8f4;
+}
+
+.account-manager-v3 {
+  padding: 16px;
+}
+
+.account-manager-heading,
+.account-add-form-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-manager-heading > strong {
+  color: #1f6e5b;
+  font-size: 20px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.account-manager-heading > strong small {
+  color: #829097;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.account-manager-heading p,
+.account-add-form-heading p {
+  margin-top: 4px;
+  color: #829097;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.publishing-account-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.publishing-account-card {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid #dce6e2;
+  border-radius: 8px;
+  background: #f8fbfa;
+}
+
+.publishing-account-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.publishing-account-meta > span {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: #e4f5ed;
+  color: #1f6e5b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.publishing-account-meta strong {
+  overflow: hidden;
+  color: #25363b;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-manager-v3 .publishing-account-meta strong {
+  display: none;
+}
+
+.publishing-account-meta em {
+  margin-left: auto;
+  color: #198754;
+  font-size: 11px;
+  font-style: normal;
+}
+
+.publishing-account-id {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #e5eeeb;
+}
+
+.publishing-account-id span {
+  color: #829097;
+  font-size: 11px;
+}
+
+.publishing-account-id code {
+  overflow: hidden;
+  color: #33484a;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-add-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e5eeeb;
+}
+
+.account-add-form-heading h3 {
+  color: #25363b;
+  font-size: 14px;
+}
+
+.account-add-fields {
+  display: grid;
+  grid-template-columns: minmax(110px, .8fr) minmax(0, 1.2fr);
+  gap: 10px;
+}
+
+.account-add-fields label {
+  display: grid;
+  gap: 6px;
+  color: #52636b;
+  font-size: 12px;
+}
+
+.account-add-fields select,
+.account-add-fields input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid #d4dfdc;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #25363b;
+  font: inherit;
+}
+
+.account-add-form .primary-action {
+  width: 100%;
+  margin: 0;
+}
+
+@media (max-width: 390px) {
+  .account-add-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .rework-note {
   display: grid;
   gap: 5px;
@@ -2380,4 +2599,428 @@ h1 {
 .bottom-nav .active {
   color: #1f7a64;
   font-weight: 800;
+}
+
+.detail-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 24px;
+  background: rgba(244, 247, 246, 0.96);
+  color: #52636b;
+  text-align: center;
+}
+
+.detail-loading strong {
+  color: #24353a;
+}
+
+.detail-loading span {
+  max-width: 420px;
+  overflow-wrap: anywhere;
+  color: #829097;
+  font-size: 12px;
+}
+
+.detail-loading button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #abd1c1;
+  border-radius: 7px;
+  background: #eff8f4;
+  color: #1f6e5b;
+  font-weight: 700;
+}
+
+.fund-post-workspace {
+  margin-top: 18px;
+}
+
+.fund-post-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.fund-post-heading h2 {
+  margin-top: 4px;
+  color: #172026;
+  font-size: 22px;
+}
+
+.fund-post-heading p {
+  margin-top: 5px;
+  color: #829097;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.fund-new-task-button {
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 12px;
+}
+
+.fund-task-list,
+.fund-create-form {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #dce6e2;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.fund-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fund-section-heading h3 {
+  color: #25363b;
+  font-size: 15px;
+}
+
+.fund-section-heading span {
+  display: block;
+  margin-top: 4px;
+  color: #829097;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.fund-section-heading > strong {
+  color: #1f6e5b;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.fund-task-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #dce6e2;
+  border-radius: 8px;
+  background: #f8fbfa;
+}
+
+.fund-task-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fund-task-card-head > div {
+  min-width: 0;
+}
+
+.fund-platform-tag {
+  display: inline-flex;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: #e4f5ed;
+  color: #1f6e5b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.fund-task-card h3 {
+  margin-top: 7px;
+  color: #25363b;
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.fund-task-card-head > strong {
+  flex: 0 0 auto;
+  color: #829097;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.fund-task-card-progress {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  color: #829097;
+  font-size: 11px;
+}
+
+.fund-task-card-progress > div {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #e5eeeb;
+}
+
+.fund-task-card-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2b806b;
+}
+
+.fund-task-card-progress b {
+  color: #1f6e5b;
+  font-size: 11px;
+}
+
+.fund-post-preview {
+  display: grid;
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid #e5eeeb;
+}
+
+.fund-post-preview > div {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.fund-post-preview > div > span {
+  flex: 0 0 auto;
+  color: #1f7a64;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.fund-post-preview p {
+  overflow: hidden;
+  color: #52636b;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fund-post-preview small,
+.fund-empty-state {
+  color: #829097;
+  font-size: 12px;
+}
+
+.fund-empty-state {
+  margin-top: 12px;
+  padding: 26px 12px;
+  border: 1px dashed #c8d8d2;
+  border-radius: 8px;
+  background: #f8fbfa;
+  text-align: center;
+}
+
+.fund-create-heading {
+  display: block;
+}
+
+.text-back-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  margin-bottom: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1f6e5b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.fund-form-section + .fund-form-section {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid #e5eeeb;
+}
+
+.fund-form-section > label {
+  display: grid;
+  gap: 6px;
+  margin-top: 13px;
+  color: #52636b;
+  font-size: 12px;
+}
+
+.fund-form-section input,
+.fund-form-section select,
+.fund-form-section textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px;
+  border: 1px solid #d4dfdc;
+  border-radius: 7px;
+  background: #fbfcfc;
+  color: #25363b;
+  font: inherit;
+}
+
+.fund-form-section textarea {
+  min-height: 150px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.fund-draft-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.fund-draft-item {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px;
+  border: 1px solid #dce6e2;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #25363b;
+  text-align: left;
+}
+
+.fund-draft-item.active {
+  border-color: #6eae99;
+  background: #f2f9f6;
+  box-shadow: 0 0 0 2px rgba(43, 128, 107, 0.08);
+}
+
+.fund-draft-item > span {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e4f5ed;
+  color: #1f6e5b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.fund-draft-item > div {
+  min-width: 0;
+}
+
+.fund-draft-item strong,
+.fund-draft-item small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fund-draft-item strong {
+  font-size: 12px;
+}
+
+.fund-draft-item small {
+  margin-top: 3px;
+  color: #829097;
+  font-size: 11px;
+}
+
+.fund-draft-item em {
+  color: #829097;
+  font-size: 10px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.fund-draft-item.active em {
+  color: #1f6e5b;
+}
+
+.fund-post-editor-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #cfe1d8;
+  border-radius: 8px;
+  background: #f8fcfa;
+}
+
+.fund-editor-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e0ece7;
+}
+
+.fund-editor-card-head span {
+  color: #1f6e5b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.fund-editor-card-head h3 {
+  margin-top: 4px;
+  color: #25363b;
+  font-size: 15px;
+}
+
+.fund-editor-card-head .icon-button {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  color: #a45542;
+}
+
+.optional-label {
+  color: #a0acb0;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.fund-form-error {
+  margin-top: 14px;
+}
+
+.fund-create-actions {
+  display: grid;
+  grid-template-columns: minmax(100px, .6fr) minmax(0, 1.4fr);
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.fund-create-actions button {
+  min-height: 44px;
+  margin: 0;
+}
+
+@media (max-width: 390px) {
+  .fund-post-heading {
+    display: grid;
+  }
+
+  .fund-new-task-button {
+    width: 100%;
+  }
+
+  .fund-task-list,
+  .fund-create-form {
+    padding: 13px;
+  }
+
+  .fund-task-card-head {
+    display: grid;
+    gap: 7px;
+  }
+
+  .fund-task-card-head > strong {
+    justify-self: start;
+  }
 }

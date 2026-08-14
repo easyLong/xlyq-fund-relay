@@ -178,6 +178,7 @@ export interface DemoAccount {
   name: string;
   username: string;
   role: 'operator' | 'executor' | 'fund';
+  fundProductId?: string | null;
   availablePoints?: number;
   token?: string;
 }

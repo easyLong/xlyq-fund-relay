@@ -10,6 +10,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
       },
       ...init,
     });
+    if (response.status === 401 && token && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('xlyq-auth-expired'));
+    }
     if (!response.ok) {
       throw new Error(`请求失败：${response.status}`);
     }

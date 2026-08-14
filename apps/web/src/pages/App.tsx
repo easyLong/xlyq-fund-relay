@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CLAIM_STATUS_LABEL, PLATFORM_OPTIONS, TASK_STATUS_LABEL, type CreateTaskInput, type DashboardSummary, type FundTask, type FundTaskPost, type FundTaskProgress, type TaskDetail, type TaskListItem } from '@xlyq/shared';
-import { Bell, CheckCircle2, ClipboardCheck, ClipboardList, ExternalLink, Home, ImagePlus, ListChecks, Plus, Send, ShieldCheck, Trash2, UserRound, WifiOff, XCircle } from 'lucide-react';
+import { CLAIM_STATUS_LABEL, PLATFORM_OPTIONS, TASK_STATUS_LABEL, type CreateTaskInput, type DashboardSummary, type DemoAccount, type FundTask, type FundTaskPost, type FundTaskProgress, type TaskDetail, type TaskListItem } from '@xlyq/shared';
+import { Bell, CheckCircle2, ClipboardCheck, ClipboardList, Copy, ExternalLink, Home, ImagePlus, ListChecks, Plus, Send, ShieldCheck, Trash2, UserRound, WifiOff, XCircle, type LucideIcon } from 'lucide-react';
 import { useEffect, useState, type ChangeEvent } from 'react';
 import {
   bootstrapDemo,
@@ -34,9 +34,20 @@ type View = 'home' | 'tasks' | 'review' | 'mine';
 
 const roleLabels: Record<Role, string> = { operator: '运营工作台', user: '执行工作台', fund: '基金内容工作台' };
 
+function readStoredAccount(): DemoAccount | undefined {
+  const raw = window.localStorage.getItem('xlyq_account');
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as DemoAccount;
+  } catch {
+    return undefined;
+  }
+}
+
 export function App() {
   const queryClient = useQueryClient();
   const [accountId, setAccountId] = useState(() => window.localStorage.getItem('xlyq_account_id') ?? '');
+  const [sessionAccount, setSessionAccount] = useState<DemoAccount | undefined>(() => readStoredAccount());
   const [selectedTaskId, setSelectedTaskId] = useState<string>();
   const [demo, setDemo] = useState<Awaited<ReturnType<typeof bootstrapDemo>>['data']>();
   const [notice, setNotice] = useState<string>();
@@ -45,22 +56,23 @@ export function App() {
   const [view, setView] = useState<View>('home');
 
   const boot = useMutation({ mutationFn: bootstrapDemo, onSuccess: (result) => setDemo(result.data) });
-  const auth = useMutation({ mutationFn: login, onSuccess: (result) => { setAccountId(result.data.id); window.localStorage.setItem('xlyq_account_id', result.data.id); if (result.data.token) window.localStorage.setItem('xlyq_session_token', result.data.token); setNotice(undefined); } });
+  const auth = useMutation({ mutationFn: login, onSuccess: (result) => { queryClient.clear(); setSessionAccount(result.data); setAccountId(result.data.id); window.localStorage.setItem('xlyq_account', JSON.stringify(result.data)); window.localStorage.setItem('xlyq_account_id', result.data.id); if (result.data.token) window.localStorage.setItem('xlyq_session_token', result.data.token); setNotice(undefined); } });
   useEffect(() => { boot.mutate(); }, []);
 
   const health = useQuery({ queryKey: ['health'], queryFn: getHealth, retry: 1 });
   const accounts = demo ? [demo.operator, demo.fund, ...demo.executors] : [];
-  const account = accounts.find((item) => item.id === accountId);
+  const account = sessionAccount ?? accounts.find((item) => item.id === accountId);
   const role: Role = account?.role === 'operator' ? 'operator' : account?.role === 'fund' ? 'fund' : 'user';
   const executorId = account?.role === 'executor' ? account.id : undefined;
+  const scopedFundProductId = account?.fundProductId ?? demo?.fundProduct.id;
   const dashboard = useQuery({ queryKey: ['operator-dashboard'], queryFn: getOperatorDashboard, retry: 1, enabled: Boolean(demo && role === 'operator') });
   const tasks = useQuery({ queryKey: ['tasks'], queryFn: getTasks, retry: 1, enabled: Boolean(demo && role === 'operator') });
   const market = useQuery({ queryKey: ['task-market', executorId], queryFn: () => getTaskMarket(executorId, 'executor'), retry: 1, enabled: Boolean(demo && role === 'user') });
   const points = useQuery({ queryKey: ['points', executorId], queryFn: () => getPoints(executorId!), enabled: Boolean(executorId) });
   const myTasks = useQuery({ queryKey: ['my-tasks', executorId], queryFn: () => getMyTasks(executorId!), enabled: Boolean(executorId) });
   const executorAccounts = useQuery({ queryKey: ['executor-accounts', executorId], queryFn: () => getExecutorAccounts(executorId!), enabled: Boolean(executorId) });
-  const fundPosts = useQuery({ queryKey: ['fund-posts', demo?.fundProduct.id], queryFn: () => getFundPosts(demo!.fundProduct.id), enabled: Boolean(demo && ['operator', 'fund'].includes(role)) });
-  const fundProgress = useQuery({ queryKey: ['fund-task-progress', account?.id, demo?.fundProduct.id], queryFn: () => getFundTaskProgress(account!.id, demo!.fundProduct.id), enabled: Boolean(demo && role === 'fund' && account) });
+  const fundPosts = useQuery({ queryKey: ['fund-posts', scopedFundProductId], queryFn: () => getFundPosts(scopedFundProductId!), enabled: Boolean(scopedFundProductId && ['operator', 'fund'].includes(role)) });
+  const fundProgress = useQuery({ queryKey: ['fund-task-progress', account?.id, scopedFundProductId], queryFn: () => getFundTaskProgress(account!.id, scopedFundProductId!), enabled: Boolean(scopedFundProductId && role === 'fund' && account) });
   const detailViewerId = role === 'operator' ? account?.id : executorId;
   const detailViewerRole = role === 'operator' ? 'operator' : 'executor';
   const detail = useQuery({ queryKey: ['task-detail', selectedTaskId, detailViewerId, detailViewerRole], queryFn: () => getTaskDetail(selectedTaskId!, detailViewerId, detailViewerRole), enabled: Boolean(selectedTaskId && detailViewerId) });
@@ -86,6 +98,9 @@ export function App() {
   });
 
   const visibleTasks = role === 'operator' ? (tasks.data?.data ?? []) : (market.data?.data ?? []);
+  const navItems: Array<[View, string, LucideIcon]> = role === 'fund'
+    ? [['home', '首页', Home], ['mine', '我的', UserRound]]
+    : [['home', '首页', Home], ['tasks', role === 'operator' ? '任务' : '可接任务', ClipboardList], ['review', role === 'operator' ? '审核' : '进度', ShieldCheck], ['mine', '我的', UserRound]];
   const selectedClaim = detail.data?.data.claims.find((claim) => claim.userId === executorId);
   const pendingSubmission = detail.data?.data.claims.find((claim) => claim.submission?.status === 'PENDING_REVIEW')?.submission ?? undefined;
 
@@ -94,13 +109,31 @@ export function App() {
   };
 
   const logout = () => {
+    queryClient.clear();
+    setSessionAccount(undefined);
     setAccountId('');
+    window.localStorage.removeItem('xlyq_account');
     window.localStorage.removeItem('xlyq_account_id');
     window.localStorage.removeItem('xlyq_session_token');
     setSelectedTaskId(undefined);
     setNotice(undefined);
     setView('home');
   };
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      queryClient.clear();
+      setSessionAccount(undefined);
+      setAccountId('');
+      window.localStorage.removeItem('xlyq_account');
+      window.localStorage.removeItem('xlyq_account_id');
+      window.localStorage.removeItem('xlyq_session_token');
+      setSelectedTaskId(undefined);
+      setView('home');
+    };
+    window.addEventListener('xlyq-auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('xlyq-auth-expired', handleAuthExpired);
+  }, [queryClient]);
 
   if (!account) return <LoginPage loading={boot.isPending} submitting={auth.isPending} error={auth.error || boot.error} onLogin={authenticate} />;
 
@@ -111,16 +144,18 @@ export function App() {
     {notice ? <section className="notice-panel"><CheckCircle2 size={16} /><span>{notice}</span><button type="button" onClick={() => setNotice(undefined)} aria-label="关闭提示">×</button></section> : null}
     {view === 'home' && demo && role === 'operator' ? <OperatorHome summary={dashboard.data?.data} tasks={visibleTasks} loading={dashboard.isLoading} onSelect={setSelectedTaskId} onCreate={() => setShowCreate(true)} /> : null}
     {view === 'home' && demo && role === 'user' ? <UserHome market={visibleTasks} myTasks={myTasks.data?.data ?? []} points={points.data?.data} tab={myTaskTab} onTabChange={setMyTaskTab} onSelect={setSelectedTaskId} /> : null}
-    {view === 'home' && demo && role === 'fund' ? <><FundProgressPanel progress={fundProgress.data?.data ?? []} /><FundPostWorkspaceV2 posts={fundPosts.data?.data ?? []} progress={fundProgress.data?.data ?? []} onCreate={async (input) => { await createFundPost(account.id, demo.fundProduct.id, input); refresh(); }} /></> : null}
+    {view === 'home' && demo && role === 'fund' && scopedFundProductId ? <><FundProgressPanel progress={fundProgress.data?.data ?? []} /><FundPostWorkspaceV2 posts={fundPosts.data?.data ?? []} progress={fundProgress.data?.data ?? []} onCreate={async (input) => { await createFundPost(account.id, scopedFundProductId, input); refresh(); }} /></> : null}
     {view === 'tasks' && demo ? <TaskWorkspace role={role} tasks={tasks.data?.data ?? []} market={market.data?.data ?? []} myTasks={myTasks.data?.data ?? []} onSelect={setSelectedTaskId} /> : null}
     {view === 'review' && demo ? <ReviewWorkspace role={role} tasks={tasks.data?.data ?? []} actions={dashboard.data?.data.actionQueue ?? []} myTasks={myTasks.data?.data ?? []} onSelect={setSelectedTaskId} /> : null}
-    {view === 'mine' && demo ? <MineWorkspaceV2 role={role} accountName={account.name} username={account.username} points={points.data?.data} onLogout={logout} accountSummary={executorAccounts.data?.data} onAddAccount={executorId ? async (input) => { await createExecutorAccount(executorId, input); refresh(); } : undefined} onUpdateAccount={executorId ? async (accountId, input) => { await updateExecutorAccount(executorId, accountId, input); refresh(); } : undefined} /> : null}
+    {view === 'mine' && demo ? <MineWorkspaceV3 role={role} accountName={account.name} username={account.username} points={points.data?.data} onLogout={logout} accountSummary={executorAccounts.data?.data} onAddAccount={executorId ? async (input) => { await createExecutorAccount(executorId, input); refresh(); } : undefined} /> : null}
     {!demo && !boot.isPending ? <section className="panel error-panel"><strong>演示数据初始化失败</strong><span>{boot.error?.message ?? '请刷新页面重试'}</span></section> : null}
     {selectedTaskId && detail.data?.data && role === 'operator' ? <CleanOperatorTaskDetailPage detail={detail.data.data} actionPending={action.isPending} onAction={(input) => action.mutate(input)} onClose={() => setSelectedTaskId(undefined)} /> : null}
     {selectedTaskId && detail.data?.data && role === 'user' && selectedClaim && ['PENDING_SUBMIT', 'REWORKING', 'PENDING_REVIEW'].includes(selectedClaim.status) ? <CleanSubmissionPage detail={detail.data.data} selectedClaim={selectedClaim} actionPending={action.isPending} onAction={(input) => action.mutate(input)} onClose={() => setSelectedTaskId(undefined)} /> : null}
+    {selectedTaskId && detail.isLoading ? <section className="detail-loading" role="status">正在加载任务详情...</section> : null}
+    {selectedTaskId && detail.error ? <section className="detail-loading detail-error" role="alert"><strong>任务详情加载失败</strong><span>{detail.error.message}</span><button type="button" onClick={() => void detail.refetch()}>重新加载</button></section> : null}
     {selectedTaskId && detail.data?.data && role === 'user' && !['PENDING_SUBMIT', 'REWORKING', 'PENDING_REVIEW'].includes(selectedClaim?.status ?? '') ? <CleanTaskDetailPanel detail={detail.data.data} selectedClaim={selectedClaim} actionPending={action.isPending} onAction={(input) => action.mutate(input)} onClose={() => setSelectedTaskId(undefined)} /> : null}
     {showCreate && demo ? <CreateTaskPanelV2 demo={demo} posts={fundPosts.data?.data ?? []} pending={action.isPending} onClose={() => setShowCreate(false)} onCreated={(task) => { setShowCreate(false); setSelectedTaskId(task.id); setNotice('任务已创建，名额按帖子数量生成'); refresh(); }} onCreate={async (input) => createTask(input)} /> : null}
-    <nav className="bottom-nav" aria-label="底部导航">{([['home', '首页', Home], ['tasks', '任务', ClipboardList], ['review', '审核', ShieldCheck], ['mine', '我的', UserRound] ] as const).map(([key, label, Icon]) => <button className={view === key ? 'active' : ''} type="button" key={key} onClick={() => { setSelectedTaskId(undefined); setView(key); }}><Icon size={18} /><span>{label}</span></button>)}</nav>
+    <nav className="bottom-nav" aria-label="底部导航" style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}>{navItems.map(([key, label, Icon]) => <button className={view === key ? 'active' : ''} type="button" key={key} onClick={() => { setSelectedTaskId(undefined); setView(key); }}><Icon size={18} /><span>{label}</span></button>)}</nav>
   </main>;
 }
 
@@ -129,7 +164,7 @@ function LoginPage({ loading, submitting, error, onLogin }: { loading: boolean; 
   const [password, setPassword] = useState('');
   const canSubmit = username.trim().length > 0 && password.length > 0;
   if (loading) return <main className="login-shell"><section className="login-panel"><div className="eyebrow">公募基金营销任务跟踪系统</div><h1>正在准备登录</h1><p>正在连接业务服务，请稍候...</p></section></main>;
-  return <main className="login-shell"><section className="login-panel"><div className="eyebrow">公募基金营销任务跟踪系统</div><h1>账号登录</h1><p>请输入账号和密码进入对应工作台。</p><form className="login-form" onSubmit={(event) => { event.preventDefault(); if (canSubmit) onLogin(username.trim(), password); }}><label>账号<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" placeholder="请输入账号" /></label><label>密码<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="请输入密码" /></label>{error ? <div className="form-error">{error.message}</div> : null}<button className="primary-action" type="submit" disabled={!canSubmit || submitting}>{submitting ? '登录中...' : '登录'}</button></form><div className="login-hint">运营账号：admin<br />兼职账号：staff1、staff2、staff3</div></section></main>;
+  return <main className="login-shell"><section className="login-panel"><div className="eyebrow">公募基金营销任务跟踪系统</div><h1>账号登录</h1><p>请输入账号和密码进入对应工作台。</p><form className="login-form" onSubmit={(event) => { event.preventDefault(); if (canSubmit) onLogin(username.trim(), password); }}><label>账号<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" placeholder="请输入账号" /></label><label>密码<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="请输入密码" /></label>{error ? <div className="form-error">{error.message}</div> : null}<button className="primary-action" type="submit" disabled={!canSubmit || submitting}>{submitting ? '登录中...' : '登录'}</button></form><div className="login-hint">运营账号：admin<br />兼职账号：staff1、staff2、staff3<br />基金公司：fund1</div></section></main>;
 }
 
 type MyTaskRow = TaskListItem & { claimId: string; claimStatus: keyof typeof CLAIM_STATUS_LABEL; reviewComment?: string | null };
@@ -188,6 +223,33 @@ function MineWorkspaceV2({ role, accountName, username, points, onLogout, accoun
   return <section className="workspace-page"><div className="page-heading"><div><div className="eyebrow">账号中心</div><h2>我的</h2></div></div><section className="profile-panel"><div className="profile-avatar">{accountName.slice(-1)}</div><div><strong>{accountName}</strong><small>{username} · 兼职人员</small></div></section><section className="points-banner mine-points"><div><span>可用积分</span><strong>{points?.availablePoints ?? 0}</strong></div><div><span>可兑换</span><strong>¥{points?.cashValue?.toFixed(2) ?? '0.00'}</strong></div></section><section className="panel account-manager"><div className="section-heading"><div><h2>我的发布账号</h2><p className="section-caption">单任务可领取名额：{activeAccounts.length} 个</p></div><span>已填写 {activeAccounts.length} 个</span></div><div className="account-rows">{activeAccounts.length ? activeAccounts.map((item) => <div className="account-row" key={item.id}><strong>{item.accountName}</strong><span>{item.platform}</span><small>{item.accountUid || '未填写账号标识'}</small><em>{item.passwordSet ? '密码已保存' : '未设置密码'}</em><button className="account-edit-button" type="button" onClick={() => { setEditingId(item.id); setEditPassword(''); }}>修改密码</button></div>) : <div className="empty-state">还没有填写发布账号</div>}</div>{editingId ? <div className="account-password-editor"><input type="password" value={editPassword} onChange={(event) => setEditPassword(event.target.value)} placeholder="输入新密码" autoComplete="new-password" /><button className="primary-action" type="button" disabled={!editPassword.trim()} onClick={() => void savePassword()}>保存密码</button><button className="secondary-action" type="button" onClick={() => setEditingId(undefined)}>取消</button></div> : null}<div className="account-add-heading"><strong>新增发布账号</strong><span>账号密码只保存加密结果，不会在页面回显</span></div><div className="account-add-row"><select value={platform} onChange={(event) => setPlatform(event.target.value)}>{PLATFORM_OPTIONS.map((item) => <option key={item}>{item}</option>)}</select><input value={name} onChange={(event) => setName(event.target.value)} placeholder="账号名称" /><input value={uid} onChange={(event) => setUid(event.target.value)} placeholder="账号 ID / 主页标识（选填）" /><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="账号密码（选填）" autoComplete="new-password" /><button className="primary-action" type="button" disabled={!name.trim()} onClick={() => void submit()}><Plus size={16} />添加</button></div></section><button className="secondary-action" type="button" onClick={onLogout}>退出登录</button></section>;
 }
 
+function MineWorkspaceV3({ role, accountName, username, points, onLogout, accountSummary, onAddAccount }: { role: Role; accountName: string; username: string; points?: { availablePoints: number; cashValue: number }; onLogout: () => void; accountSummary?: { accounts: Array<{ id: string; platform: string; accountName: string; accountUid?: string | null; status: string }>; accountCount: number; activeTaskCount: number; availableTaskSlots: number }; onAddAccount?: (input: { platform: string; accountName: string; accountUid?: string }) => Promise<void> }) {
+  const [platform, setPlatform] = useState<string>(PLATFORM_OPTIONS[0]);
+  const [accountUid, setAccountUid] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string>();
+  const activeAccounts = accountSummary?.accounts.filter((item) => item.status === 'ACTIVE') ?? [];
+
+  const submit = async () => {
+    const uid = accountUid.trim();
+    if (!uid || !onAddAccount || adding) return;
+    setAdding(true);
+    setError(undefined);
+    try {
+      await onAddAccount({ platform, accountName: uid, accountUid: uid });
+      setAccountUid('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '账号保存失败，请稍后重试');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  if (role !== 'user') return <MineWorkspace role={role} accountName={accountName} username={username} points={points} onLogout={onLogout} accountSummary={accountSummary} onAddAccount={onAddAccount} />;
+
+  return <section className="workspace-page"><div className="page-heading"><div><div className="eyebrow">账号中心</div><h2>我的</h2></div></div><section className="profile-panel"><div className="profile-avatar">{accountName.slice(-1)}</div><div><strong>{accountName}</strong><small>{username} · 兼职执行人员</small></div></section><section className="points-banner mine-points"><div><span>可用积分</span><strong>{points?.availablePoints ?? 0}</strong></div><div><span>可兑换</span><strong>¥{points?.cashValue?.toFixed(2) ?? '0.00'}</strong></div></section><section className="panel account-manager account-manager-v3"><div className="account-manager-heading"><div><h2>发布账号</h2><p>每个平台配置一个账号 ID，用于领取对应平台任务</p></div><strong>{activeAccounts.length}<small> 个可用</small></strong></div><div className="publishing-account-list">{activeAccounts.length ? activeAccounts.map((item) => <article className="publishing-account-card" key={item.id}><div className="publishing-account-meta"><span>{item.platform}</span><strong>{item.accountName}</strong><em>可用</em></div><div className="publishing-account-id"><span>账号 ID</span><code>{item.accountUid || item.accountName}</code></div></article>) : <div className="empty-state">还没有发布账号，请先添加</div>}</div><div className="account-add-form"><div className="account-add-form-heading"><div><h3>新增发布账号</h3><p>只需要填写平台和账号 ID，不需要密码</p></div></div><div className="account-add-fields"><label>发布平台<select value={platform} onChange={(event) => setPlatform(event.target.value)}>{PLATFORM_OPTIONS.map((item) => <option key={item}>{item}</option>)}</select></label><label className="account-id-field">账号 ID<input value={accountUid} onChange={(event) => setAccountUid(event.target.value)} placeholder="请输入平台账号 ID" autoComplete="off" /></label></div>{error ? <div className="form-error">{error}</div> : null}<button className="primary-action" type="button" disabled={!accountUid.trim() || adding} onClick={() => void submit()}><Plus size={16} />{adding ? '保存中...' : '保存发布账号'}</button></div></section><button className="secondary-action" type="button" onClick={onLogout}>退出登录</button></section>;
+}
+
 function FundPostWorkspace({ posts, onCreate }: { posts: FundTaskPost[]; onCreate: (input: { taskName: string; platform: string; postTitle?: string; postContent?: string; postUrl?: string }) => Promise<void> }) {
   const [form, setForm] = useState({ taskName: '', platform: '小红书', postTitle: '', postContent: '', postUrl: '' });
   const submit = async () => { if (!form.taskName.trim()) return; await onCreate(form); setForm({ taskName: '', platform: '小红书', postTitle: '', postContent: '', postUrl: '' }); };
@@ -202,8 +264,69 @@ function FundPostEditor({ posts, onCreate }: { posts: FundTask[]; onCreate: (inp
   return <section className="workspace-page"><div className="page-heading"><div><div className="eyebrow">基金内容协同</div><h2>任务帖子填报</h2></div><span>{posts.length} 个基金任务</span></div><section className="panel"><div className="section-heading"><div><h2>新增基金任务</h2><p className="section-caption">任务名和发布平台必填；一个任务可添加 N 个帖子，任务数按帖子数量生成</p></div></div><label>任务名称（必填）<input value={form.taskName} onChange={(event) => setForm({ ...form, taskName: event.target.value })} /></label><label>发布平台（必填）<select value={form.platform} onChange={(event) => setForm({ ...form, platform: event.target.value })}>{PLATFORM_OPTIONS.map((item) => <option key={item}>{item}</option>)}</select></label><div className="section-heading"><h3>帖子列表（至少 1 条）</h3><button className="secondary-action" type="button" onClick={() => setItems([...items, { title: '', content: '', url: '' }])}><Plus size={16} />添加帖子</button></div>{items.map((item, index) => <div className="panel" key={index}><strong>帖子 {index + 1}</strong><label>标题（必填）<input value={item.title} onChange={(event) => updateItem(index, 'title', event.target.value)} /></label><label>正文（必填）<textarea value={item.content} onChange={(event) => updateItem(index, 'content', event.target.value)} /></label><label>链接（选填）<input value={item.url} onChange={(event) => updateItem(index, 'url', event.target.value)} /></label>{items.length > 1 ? <button className="secondary-action" type="button" onClick={() => setItems(items.filter((_, itemIndex) => itemIndex !== index))}>删除此帖子</button> : null}</div>)}<button className="primary-action" type="button" disabled={!form.taskName.trim() || items.some((item) => !item.title.trim() || !item.content.trim())} onClick={() => void submit()}><Plus size={16} />保存基金任务</button></section><section className="panel task-panel"><div className="section-heading"><h2>已填报基金任务</h2><span>{posts.length} 个</span></div>{posts.map((task) => <article className="task-item" key={task.id}><div className="task-title-row"><h3>{task.taskName}</h3><span>{task.platform} · {task.postCount} 个任务</span></div>{task.posts.map((post, index) => <p key={post.id}>帖子 {index + 1}：{post.title}</p>)}</article>)}</section></section>;
 }
 
+type DraftFundPost = { title: string; content: string; url: string };
+
+function FundPostEditorV2({ posts, progress, onCreate }: { posts: FundTask[]; progress: FundTaskProgress[]; onCreate: (input: { taskName: string; platform: string; posts: Array<{ title: string; content: string; url?: string }> }) => Promise<void> }) {
+  const [mode, setMode] = useState<'list' | 'create'>('list');
+  const [taskName, setTaskName] = useState('');
+  const [platform, setPlatform] = useState<string>(PLATFORM_OPTIONS[0]);
+  const [items, setItems] = useState<DraftFundPost[]>([{ title: '', content: '', url: '' }]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const reset = () => {
+    setMode('list');
+    setTaskName('');
+    setPlatform(PLATFORM_OPTIONS[0]);
+    setItems([{ title: '', content: '', url: '' }]);
+    setActiveIndex(0);
+    setError(undefined);
+  };
+
+  const updateItem = (key: keyof DraftFundPost, value: string) => {
+    setItems((current) => current.map((item, index) => index === activeIndex ? { ...item, [key]: value } : item));
+  };
+
+  const addItem = () => {
+    setItems((current) => [...current, { title: '', content: '', url: '' }]);
+    setActiveIndex(items.length);
+    setError(undefined);
+  };
+
+  const removeItem = (index: number) => {
+    if (items.length === 1) return;
+    const nextItems = items.filter((_, itemIndex) => itemIndex !== index);
+    setItems(nextItems);
+    setActiveIndex(Math.min(activeIndex, nextItems.length - 1));
+  };
+
+  const save = async () => {
+    if (!taskName.trim()) return setError('请先填写任务名称');
+    if (items.some((item) => !item.title.trim() || !item.content.trim())) return setError('请补全每条帖子的标题和正文');
+    if (saving) return;
+    setSaving(true);
+    setError(undefined);
+    try {
+      await onCreate({ taskName: taskName.trim(), platform, posts: items.map((item) => ({ title: item.title.trim(), content: item.content.trim(), url: item.url.trim() || undefined })) });
+      reset();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '保存失败，请稍后重试');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (mode === 'list') {
+    return <section className="fund-post-workspace"><div className="fund-post-heading"><div><div className="eyebrow">内容资料管理</div><h2>任务帖子填报</h2><p>先查看已填报任务，需要新增时再开始编辑</p></div><button className="primary-action fund-new-task-button" type="button" onClick={() => { setMode('create'); setError(undefined); }}><Plus size={17} />新建任务</button></div><section className="fund-task-list"><div className="fund-section-heading"><div><h3>已填报任务</h3><span>提交后会生成对应执行任务</span></div><strong>{posts.length} 个</strong></div>{posts.length === 0 ? <div className="fund-empty-state">还没有填报任务，点击上方开始创建</div> : posts.map((task) => { const taskProgress = progress.find((item) => item.id === task.id); return <article className="fund-task-card" key={task.id}><div className="fund-task-card-head"><div><span className="fund-platform-tag">{task.platform}</span><h3>{task.taskName}</h3></div><strong>{task.postCount} 条帖子</strong></div><div className="fund-task-card-progress"><span>执行进度</span><div><i style={{ width: `${Math.min(100, taskProgress?.completionRate ?? 0)}%` }} /></div><b>{taskProgress?.completionRate ?? 0}%</b></div><div className="fund-post-preview">{task.posts.slice(0, 2).map((post, index) => <div key={post.id}><span>{index + 1}</span><p>{post.title}</p></div>)}{task.posts.length > 2 ? <small>还有 {task.posts.length - 2} 条帖子</small> : null}</div></article>; })}</section></section>;
+  }
+
+  const activeItem = items[activeIndex];
+  return <section className="fund-post-workspace"><div className="fund-post-heading fund-create-heading"><div><button className="text-back-button" type="button" onClick={reset}>‹ 返回任务列表</button><div className="eyebrow">新建内容任务</div><h2>填写任务帖子</h2><p>先填写任务基本信息，再逐条添加要发布的帖子</p></div></div><section className="fund-create-form"><div className="fund-form-section"><div className="fund-section-heading"><div><h3>1. 任务基本信息</h3><span>这些信息会同步给运营人员</span></div></div><label>任务名称<input value={taskName} onChange={(event) => setTaskName(event.target.value)} placeholder="例如：八月稳健理财内容推广" /></label><label>发布平台<select value={platform} onChange={(event) => setPlatform(event.target.value)}>{PLATFORM_OPTIONS.map((item) => <option key={item}>{item}</option>)}</select></label></div><div className="fund-form-section"><div className="fund-section-heading"><div><h3>2. 帖子内容</h3><span>共 {items.length} 条，点击下方卡片切换编辑</span></div><button className="secondary-action" type="button" onClick={addItem}><Plus size={15} />新增一条</button></div><div className="fund-draft-list">{items.map((item, index) => <button className={`fund-draft-item ${index === activeIndex ? 'active' : ''}`} type="button" key={index} onClick={() => { setActiveIndex(index); setError(undefined); }}><span>{index + 1}</span><div><strong>{item.title.trim() || `帖子 ${index + 1}`}</strong><small>{item.content.trim() ? `${item.content.trim().slice(0, 42)}${item.content.trim().length > 42 ? '...' : ''}` : '待填写正文'}</small></div><em>{item.title.trim() && item.content.trim() ? '已填写' : '待填写'}</em></button>)}</div><article className="fund-post-editor-card"><div className="fund-editor-card-head"><div><span>正在编辑第 {activeIndex + 1} 条</span><h3>{activeItem.title.trim() || '未命名帖子'}</h3></div>{items.length > 1 ? <button className="icon-button" type="button" aria-label="删除当前帖子" onClick={() => removeItem(activeIndex)}><Trash2 size={16} /></button> : null}</div><label>帖子标题<input value={activeItem.title} onChange={(event) => updateItem('title', event.target.value)} placeholder="输入本条帖子的标题" /></label><label>帖子正文<textarea value={activeItem.content} onChange={(event) => updateItem('content', event.target.value)} placeholder="粘贴或填写基金公司确认后的正式发布正文" /></label><label>原帖链接 <span className="optional-label">选填</span><input value={activeItem.url} onChange={(event) => updateItem('url', event.target.value)} placeholder="如有原帖或参考链接，可粘贴在这里" /></label></article></div></section>{error ? <div className="form-error fund-form-error">{error}</div> : null}<div className="fund-create-actions"><button className="secondary-action" type="button" onClick={reset}>取消</button><button className="primary-action" type="button" disabled={saving} onClick={() => void save()}><CheckCircle2 size={16} />{saving ? '保存中...' : `保存任务 · ${items.length} 条帖子`}</button></div></section>;
+}
+
 function FundPostWorkspaceV2({ posts, progress, onCreate }: { posts: FundTask[]; progress: FundTaskProgress[]; onCreate: (input: { taskName: string; platform: string; posts: Array<{ title: string; content: string; url?: string }> }) => Promise<void> }) {
-  return <><FundProgressPanel progress={progress} /><FundPostEditor posts={posts} onCreate={onCreate} /></>;
+  return <><FundProgressPanel progress={progress} /><FundPostEditorV2 posts={posts} progress={progress} onCreate={onCreate} /></>;
 }
 
 function FundProgressPanel({ progress }: { progress: FundTaskProgress[] }) {
@@ -386,12 +509,42 @@ function TaskFacts({ detail }: { detail: TaskDetail }) {
   const facts = showFundInfo
     ? [['基金公司', detail.organization.name], ['基金产品', detail.fundProduct?.name ?? '未关联'], ['活动名称', detail.campaignName ?? '未设置'], ['执行名额', `${detail.claimedCount}/${detail.quota} 人`], ['发布平台', detail.platform], ['截止时间', new Date(detail.dueAt).toLocaleDateString()]]
     : [['执行名额', `${detail.claimedCount}/${detail.quota} 人`], ['发布平台', detail.platform], ['截止时间', new Date(detail.dueAt).toLocaleDateString()], ['完成奖励', `${detail.rewardPoints} 积分`]];
-  return <><section className="task-facts">{facts.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</section><OriginalTextBlock detail={detail} /></>;
+  return <><TaskTitleBlock title={detail.title} /><section className="task-facts">{facts.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</section>{detail.originalTextVisible ? <OriginalTextBlock detail={detail} /> : showFundInfo ? null : <section className="original-text-locked">领取任务后查看基金公司提供的发布正文</section>}</>;
 }
 
 function OriginalTextBlock({ detail }: { detail: TaskDetail }) {
   if (!detail.originalTextVisible) return null;
-  return <section className="original-text-block"><div><strong>基金公司原文</strong><span>数据库原始内容</span></div><p>{detail.originalText || '暂无原文内容'}</p></section>;
+  const text = detail.originalText || '暂无原文内容';
+  return <section className="original-text-block"><div><strong>发布正文</strong><CopyButton text={text} label="正文" /></div><p>{text}</p></section>;
+}
+
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return <button className="copy-button" type="button" onClick={() => void copy()}><Copy size={14} />{copied ? '已复制' : `复制${label}`}</button>;
+}
+
+function TaskTitleBlock({ title }: { title: string }) {
+  return <section className="task-title-block"><div><strong>任务标题</strong><CopyButton text={title} label="标题" /></div><p>{title}</p></section>;
 }
 
 function LegacyCreateTaskPanel({ demo, posts = [], pending, onClose, onCreated, onCreate }: { demo: Awaited<ReturnType<typeof bootstrapDemo>>['data']; posts?: FundTaskPost[]; pending: boolean; onClose: () => void; onCreated: (task: TaskListItem) => void; onCreate: (input: CreateTaskInput) => Promise<{ data: TaskListItem }> }) {
@@ -423,9 +576,10 @@ function CreateTaskPanelV2({ demo, posts, pending, onClose, onCreated, onCreate 
   const [postId, setPostId] = useState(posts[0]?.id ?? '');
   const [dueAt, setDueAt] = useState(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16));
   const [error, setError] = useState<string>();
+  const [submitting, setSubmitting] = useState(false);
   const post = posts.find((item) => item.id === postId);
-  const submit = async () => { if (!post) return setError('请先选择有效的基金任务'); try { const result = await onCreate({ title: post.taskName, description: post.posts.map((item) => item.content).join('\n\n'), originalText: post.posts.map((item) => item.content).join('\n\n'), taskType: 'CONTENT_PUBLISH', platform: post.platform, campaignName: post.taskName, organizationId: demo.organization.id, fundProductId: demo.fundProduct.id, fundTaskId: post.id, quota: post.postCount, dueAt: new Date(dueAt).toISOString() }); onCreated(result.data); } catch (reason) { setError(reason instanceof Error ? reason.message : '创建失败'); } };
-  return <section className="modal-layer"><div className="modal-panel"><div className="detail-header"><div><div className="eyebrow">新建任务</div><h2>选择基金任务</h2></div><button className="icon-button" type="button" onClick={onClose}>×</button></div><label>基金任务<select value={postId} onChange={(event) => setPostId(event.target.value)}><option value="">请选择基金任务</option>{posts.map((item) => <option value={item.id} key={item.id}>{item.taskName} · {item.platform} · {item.postCount} 个任务</option>)}</select></label>{post ? <section className="panel"><strong>{post.taskName}</strong><p>平台：{post.platform}；将生成 {post.postCount} 个任务名额</p>{post.posts.map((item, index) => <p key={item.id}>帖子 {index + 1}：{item.title}</p>)}</section> : null}<label>截止时间<input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>{error ? <div className="form-error">{error}</div> : null}<button className="primary-action" type="button" disabled={pending || !post} onClick={() => void submit()}><Plus size={17} />创建任务</button></div></section>;
+  const submit = async () => { if (!post) return setError('请先选择有效的基金任务'); if (submitting) return; setSubmitting(true); setError(undefined); try { const result = await onCreate({ title: post.taskName, description: post.posts.map((item) => item.content).join('\n\n'), originalText: post.posts.map((item) => item.content).join('\n\n'), taskType: 'CONTENT_PUBLISH', platform: post.platform, campaignName: post.taskName, organizationId: demo.organization.id, fundProductId: demo.fundProduct.id, fundTaskId: post.id, quota: post.postCount, dueAt: new Date(dueAt).toISOString() }); onCreated(result.data); } catch (reason) { setError(reason instanceof Error ? reason.message : '创建失败'); } finally { setSubmitting(false); } };
+  return <section className="modal-layer"><div className="modal-panel"><div className="detail-header"><div><div className="eyebrow">新建任务</div><h2>选择基金任务</h2></div><button className="icon-button" type="button" onClick={onClose}>×</button></div><label>基金任务<select value={postId} onChange={(event) => setPostId(event.target.value)}><option value="">请选择基金任务</option>{posts.map((item) => <option value={item.id} key={item.id}>{item.taskName} · {item.platform} · {item.postCount} 个任务</option>)}</select></label>{post ? <section className="panel"><strong>{post.taskName}</strong><p>平台：{post.platform}；将生成 {post.postCount} 个任务名额</p>{post.posts.map((item, index) => <p key={item.id}>帖子 {index + 1}：{item.title}</p>)}</section> : null}<label>截止时间<input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>{error ? <div className="form-error">{error}</div> : null}<button className="primary-action" type="button" disabled={pending || submitting || !post} onClick={() => void submit()}><Plus size={17} />{submitting ? '创建中...' : '创建任务'}</button></div></section>;
 }
 
 function daysLeft(isoDate: string) { return Math.max(0, Math.ceil((new Date(isoDate).getTime() - Date.now()) / 86400000)); }

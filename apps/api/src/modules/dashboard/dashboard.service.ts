@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { CLAIM_STATUS, TASK_STATUS, type DashboardSummary } from '@xlyq/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { TasksService } from '../tasks/tasks.service';
@@ -104,7 +104,10 @@ export class DashboardService {
     };
   }
 
-  async fundSummary(fundProductId: string) {
+  async fundSummary(fundProductId: string, userId?: string) {
+    if (!userId) throw new UnauthorizedException('登录状态无效');
+    const user = await this.prisma.user.findUnique({ where: { id: BigInt(userId) }, select: { role: true, status: true, fundProductId: true } });
+    if (!user || user.role !== 'FUND' || user.status !== 'ACTIVE' || user.fundProductId !== BigInt(fundProductId)) throw new UnauthorizedException('当前基金账号无权查看该基金看板');
     const rows = await this.prisma.fundTask.findMany({
       where: { fundProductId: BigInt(fundProductId), status: 'ACTIVE' },
       include: { posts: { where: { status: 'ACTIVE' } }, tasks: { select: { claimedCount: true, approvedCount: true, claims: { select: { status: true } }, submissions: { select: { id: true } } } } },

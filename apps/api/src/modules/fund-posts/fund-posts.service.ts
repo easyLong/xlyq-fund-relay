@@ -6,18 +6,26 @@ import { UpsertFundPostDto } from './dto/upsert-fund-post.dto';
 export class FundPostsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async assertFundUser(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: BigInt(userId) }, select: { role: true, status: true } });
+  private async assertFundUser(userId: string, fundProductId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: BigInt(userId) }, select: { role: true, status: true, fundProductId: true } });
     if (!user || user.role !== 'FUND' || user.status !== 'ACTIVE') throw new UnauthorizedException('仅基金角色可维护帖子');
+    if (user.fundProductId !== BigInt(fundProductId)) throw new UnauthorizedException('当前基金账号未绑定该基金');
   }
 
-  async list(fundProductId: string) {
+  private async assertScope(userId: string | undefined, role: string | undefined, fundProductId: string) {
+    if (!userId) throw new UnauthorizedException('登录状态无效');
+    if (role === 'OPERATOR') return;
+    await this.assertFundUser(userId, fundProductId);
+  }
+
+  async list(fundProductId: string, userId?: string, role?: string) {
+    await this.assertScope(userId, role, fundProductId);
     const rows = await this.prisma.fundTask.findMany({ where: { fundProductId: BigInt(fundProductId), status: 'ACTIVE' }, include: { posts: { where: { status: 'ACTIVE' }, orderBy: { id: 'asc' } } }, orderBy: [{ taskName: 'asc' }, { updatedAt: 'desc' }] });
     return rows.map((row) => this.mapTask(row));
   }
 
   async progress(userId: string, fundProductId: string) {
-    await this.assertFundUser(userId);
+    await this.assertFundUser(userId, fundProductId);
     const rows = await this.prisma.fundTask.findMany({
       where: { fundProductId: BigInt(fundProductId), status: 'ACTIVE' },
       include: {
@@ -37,15 +45,17 @@ export class FundPostsService {
   }
 
   async create(userId: string, fundProductId: string, input: UpsertFundPostDto) {
-    await this.assertFundUser(userId);
+    await this.assertFundUser(userId, fundProductId);
     const task = await this.prisma.fundTask.create({ data: { createdBy: BigInt(userId), fundProductId: BigInt(fundProductId), taskName: input.taskName.trim(), platform: input.platform, posts: { create: input.posts.map((post) => ({ postTitle: post.title.trim(), postContent: post.content.trim(), postUrl: post.url?.trim() || null, platform: input.platform, taskName: input.taskName.trim(), fundProductId: BigInt(fundProductId), createdBy: BigInt(userId) })) } }, include: { posts: true } });
     return this.mapTask(task);
   }
 
   async update(userId: string, id: string, input: UpsertFundPostDto) {
-    await this.assertFundUser(userId);
+    const user = await this.prisma.user.findUnique({ where: { id: BigInt(userId) }, select: { role: true, status: true, fundProductId: true } });
+    if (!user || user.role !== 'FUND' || user.status !== 'ACTIVE') throw new UnauthorizedException('仅基金角色可维护帖子');
     const existing = await this.prisma.fundTask.findUnique({ where: { id: BigInt(id) } });
     if (!existing) throw new NotFoundException('基金任务不存在');
+    if (user.fundProductId !== existing.fundProductId) throw new UnauthorizedException('当前基金账号无权修改该任务');
     const task = await this.prisma.$transaction(async (tx) => {
       await tx.fundTaskPost.updateMany({ where: { fundTaskId: existing.id }, data: { status: 'INACTIVE' } });
       return tx.fundTask.update({ where: { id: existing.id }, data: { taskName: input.taskName.trim(), platform: input.platform, posts: { create: input.posts.map((post) => ({ postTitle: post.title.trim(), postContent: post.content.trim(), postUrl: post.url?.trim() || null, platform: input.platform, taskName: input.taskName.trim(), fundProductId: existing.fundProductId, createdBy: BigInt(userId) })) } }, include: { posts: { where: { status: 'ACTIVE' }, orderBy: { id: 'asc' } } } });

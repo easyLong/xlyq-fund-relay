@@ -28,6 +28,7 @@ model User {
   passwordHash String?    @map("password_hash") @db.VarChar(255)
   role        String      @default("EXECUTOR") @db.VarChar(32)
   status      String      @default("ACTIVE") @db.VarChar(32)
+  fundProductId BigInt?   @map("fund_product_id") @db.UnsignedBigInt
   createdAt   DateTime    @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt   DateTime    @updatedAt @map("updated_at") @db.DateTime(3)
   tasks       Task[]      @relation("TaskCreatedBy")
@@ -36,9 +37,15 @@ model User {
   pointLedgers PointLedger[]
   sentTaskReminders TaskReminder[] @relation("TaskReminderSender")
   receivedTaskReminders TaskReminder[] @relation("TaskReminderRecipient")
+  taskStatusHistories TaskStatusHistory[] @relation("TaskStatusHistoryOperator")
+  claimStatusHistories ClaimStatusHistory[] @relation("ClaimStatusHistoryOperator")
+  taskReviews TaskReview[] @relation("TaskReviewReviewer")
+  notifications Notification[] @relation("NotificationRecipient")
+  auditLogs AuditLog[] @relation("AuditLogUser")
   executorAccounts ExecutorAccount[]
   fundTaskPosts FundTaskPost[]
   fundTasks FundTask[]
+  fundProduct FundProduct? @relation(fields: [fundProductId], references: [id])
 
   @@map("users")
 }
@@ -55,6 +62,7 @@ model FundProduct {
   tasks       Task[]
   fundTaskPosts FundTaskPost[]
   fundTasks FundTask[]
+  fundAccounts User[]
 
   @@map("fund_products")
 }
@@ -91,6 +99,9 @@ model Task {
   claims                 TaskClaim[]
   submissions            TaskSubmission[]
   reminders              TaskReminder[]
+  statusHistory          TaskStatusHistory[]
+  claimStatusHistory     ClaimStatusHistory[]
+  reviews                TaskReview[]
   fundTaskPostId         BigInt?       @map("fund_task_post_id") @db.UnsignedBigInt
   fundTaskPost            FundTaskPost? @relation(fields: [fundTaskPostId], references: [id])
   fundTaskId              BigInt?       @map("fund_task_id") @db.UnsignedBigInt
@@ -180,6 +191,8 @@ model TaskClaim {
   executorAccountId BigInt?    @map("executor_account_id") @db.UnsignedBigInt
   executorAccount ExecutorAccount? @relation(fields: [executorAccountId], references: [id])
   submissions TaskSubmission[]
+  statusHistory ClaimStatusHistory[]
+  reviews TaskReview[]
 
   @@unique([taskId, userId, activeFlag], map: "uk_task_claims_active")
   @@index([taskId, status], map: "idx_task_claims_task_status")
@@ -206,6 +219,7 @@ model TaskSubmission {
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
   task          Task      @relation(fields: [taskId], references: [id])
   claim         TaskClaim @relation(fields: [claimId], references: [id])
+  review        TaskReview?
 
   @@index([claimId, createdAt], map: "idx_task_submissions_claim_created_at")
   @@index([taskId, status], map: "idx_task_submissions_task_status")
@@ -256,4 +270,119 @@ model PointLedger {
   @@index([userId, createdAt], map: "idx_point_ledgers_user_created_at")
   @@index([taskId, entryType], map: "idx_point_ledgers_task_type")
   @@map("point_ledgers")
+}
+
+model TaskStatusHistory {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  taskId     BigInt   @map("task_id") @db.UnsignedBigInt
+  fromStatus String?  @map("from_status") @db.VarChar(32)
+  toStatus   String   @map("to_status") @db.VarChar(32)
+  action     String   @db.VarChar(64)
+  reason     String?  @db.VarChar(1000)
+  operatorId BigInt?  @map("operator_id") @db.UnsignedBigInt
+  source     String   @default("WEB") @db.VarChar(32)
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  task       Task     @relation(fields: [taskId], references: [id])
+  operator   User?    @relation("TaskStatusHistoryOperator", fields: [operatorId], references: [id])
+
+  @@index([taskId, createdAt], map: "idx_task_status_history_task_created_at")
+  @@index([operatorId, createdAt], map: "idx_task_status_history_operator_created_at")
+  @@map("task_status_history")
+}
+
+model ClaimStatusHistory {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  claimId    BigInt    @map("claim_id") @db.UnsignedBigInt
+  taskId     BigInt    @map("task_id") @db.UnsignedBigInt
+  fromStatus String?   @map("from_status") @db.VarChar(32)
+  toStatus   String    @map("to_status") @db.VarChar(32)
+  action     String    @db.VarChar(64)
+  reason     String?   @db.VarChar(1000)
+  operatorId BigInt?   @map("operator_id") @db.UnsignedBigInt
+  source     String    @default("WEB") @db.VarChar(32)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  claim      TaskClaim @relation(fields: [claimId], references: [id])
+  task       Task      @relation(fields: [taskId], references: [id])
+  operator   User?     @relation("ClaimStatusHistoryOperator", fields: [operatorId], references: [id])
+
+  @@index([claimId, createdAt], map: "idx_claim_status_history_claim_created_at")
+  @@index([taskId, createdAt], map: "idx_claim_status_history_task_created_at")
+  @@map("claim_status_history")
+}
+
+model TaskReview {
+  id           BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  taskId       BigInt         @map("task_id") @db.UnsignedBigInt
+  claimId      BigInt         @map("claim_id") @db.UnsignedBigInt
+  submissionId BigInt         @unique(map: "uk_task_reviews_submission") @map("submission_id") @db.UnsignedBigInt
+  reviewerId   BigInt         @map("reviewer_id") @db.UnsignedBigInt
+  result       String         @db.VarChar(32)
+  reason       String?        @db.VarChar(1000)
+  reviewedAt   DateTime       @default(now()) @map("reviewed_at") @db.DateTime(3)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  task         Task           @relation(fields: [taskId], references: [id])
+  claim        TaskClaim      @relation(fields: [claimId], references: [id])
+  submission   TaskSubmission @relation(fields: [submissionId], references: [id])
+  reviewer     User           @relation("TaskReviewReviewer", fields: [reviewerId], references: [id])
+
+  @@index([taskId, result], map: "idx_task_reviews_task_result")
+  @@index([claimId, createdAt], map: "idx_task_reviews_claim_created_at")
+  @@index([reviewerId, createdAt], map: "idx_task_reviews_reviewer_created_at")
+  @@map("task_reviews")
+}
+
+model Notification {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  recipientId  BigInt    @map("recipient_id") @db.UnsignedBigInt
+  eventId      BigInt?   @map("event_id") @db.UnsignedBigInt
+  templateCode String    @map("template_code") @db.VarChar(64)
+  title        String    @db.VarChar(160)
+  content      String?   @db.Text
+  status       String    @default("UNREAD") @db.VarChar(32)
+  readAt       DateTime? @map("read_at") @db.DateTime(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  recipient    User      @relation("NotificationRecipient", fields: [recipientId], references: [id])
+
+  @@unique([eventId, recipientId, templateCode], map: "uk_notifications_event_recipient_template")
+  @@index([recipientId, readAt, createdAt], map: "idx_notifications_recipient_read_created")
+  @@index([status, createdAt], map: "idx_notifications_status_created_at")
+  @@map("notifications")
+}
+
+model AuditLog {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  userId        BigInt?   @map("user_id") @db.UnsignedBigInt
+  roleCode      String?   @map("role_code") @db.VarChar(32)
+  action        String    @db.VarChar(64)
+  aggregateType String    @map("aggregate_type") @db.VarChar(64)
+  aggregateId   BigInt    @map("aggregate_id") @db.UnsignedBigInt
+  requestId     String?   @map("request_id") @db.VarChar(64)
+  ipAddress     String?   @map("ip_address") @db.VarChar(64)
+  userAgent     String?   @map("user_agent") @db.VarChar(500)
+  details       Json?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  user          User?     @relation("AuditLogUser", fields: [userId], references: [id])
+
+  @@index([aggregateType, aggregateId, createdAt], map: "idx_audit_logs_aggregate_created")
+  @@index([userId, createdAt], map: "idx_audit_logs_user_created")
+  @@index([action, createdAt], map: "idx_audit_logs_action_created")
+  @@map("audit_logs")
+}
+
+model DomainEvent {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  eventType     String    @map("event_type") @db.VarChar(64)
+  aggregateType String    @map("aggregate_type") @db.VarChar(64)
+  aggregateId   BigInt    @map("aggregate_id") @db.UnsignedBigInt
+  payload       Json?
+  status        String    @default("PENDING") @db.VarChar(32)
+  retryCount    Int       @default(0) @map("retry_count") @db.UnsignedInt
+  nextRetryAt   DateTime? @map("next_retry_at") @db.DateTime(3)
+  processedAt   DateTime? @map("processed_at") @db.DateTime(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([status, nextRetryAt], map: "idx_domain_events_status_retry")
+  @@index([aggregateType, aggregateId], map: "idx_domain_events_aggregate")
+  @@index([createdAt], map: "idx_domain_events_created_at")
+  @@map("domain_events")
 }

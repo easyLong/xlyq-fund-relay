@@ -45,14 +45,15 @@ export class DemoService {
     });
     const fundProduct = await this.prisma.fundProduct.upsert({
       where: { code: 'DEMO-FUND-001' },
-      update: { name: '稳健增利混合基金', status: 'ACTIVE' },
+      update: { name: '红土基金', status: 'ACTIVE' },
       create: {
         code: 'DEMO-FUND-001',
-        name: '稳健增利混合基金',
+        name: '红土基金',
         productType: '混合型',
         riskLevel: 'R3',
       },
     });
+    await this.prisma.user.update({ where: { id: fund.id }, data: { fundProductId: fundProduct.id } });
 
     await this.prisma.userPointAccount.upsert({
       where: { userId: executor.id },
@@ -108,7 +109,7 @@ export class DemoService {
     const accountFor = (userId: bigint) => accounts.find((account) => account.userId === userId)?.availablePoints ?? 0;
     return {
       operator: { id: operator.id.toString(), name: operator.displayName, username: operator.username ?? 'admin', role: 'operator' as const },
-      fund: { id: fund.id.toString(), name: fund.displayName, username: fund.username ?? 'fund1', role: 'fund' as const },
+      fund: { id: fund.id.toString(), name: fund.displayName, username: fund.username ?? 'fund1', role: 'fund' as const, fundProductId: fundProduct.id.toString() },
       executor: {
         id: executor.id.toString(),
         name: executor.displayName,
