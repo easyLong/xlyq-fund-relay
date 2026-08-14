@@ -125,6 +125,7 @@ export interface DashboardSummary {
     count: number;
   }>;
   actionQueue: OperatorAction[];
+  customerSnapshots: CustomerSnapshot[];
   customerSnapshot: CustomerSnapshot | null;
 }
 
@@ -140,6 +141,8 @@ export interface OperatorAction {
 }
 
 export interface CustomerSnapshot {
+  organizationId?: string;
+  fundProductId?: string | null;
   organizationName: string;
   fundProductName: string;
   activeTasks: number;
@@ -189,7 +192,8 @@ export interface DemoContext {
   executor: DemoAccount & { availablePoints: number };
   fund: DemoAccount;
   organization: { id: string; name: string };
-  fundProduct: { id: string; name: string; code: string };
+  fundProduct: { id: string; name: string; code: string; organizationId?: string; organizationName?: string };
+  fundProducts: Array<{ id: string; name: string; code: string; organizationId: string; organizationName: string }>;
 }
 
 export interface ExecutorAccount {
@@ -275,6 +279,8 @@ export interface TaskDetail extends TaskListItem {
     id: string;
     userId: string;
     userName: string;
+    executorAccountId?: string | null;
+    executorAccountName?: string | null;
     status: string;
     claimedAt: string;
     submission?: {
@@ -291,6 +297,8 @@ export interface TaskDetail extends TaskListItem {
 
 export interface MyTaskItem extends TaskListItem {
   claimId: string;
+  executorAccountId?: string | null;
+  executorAccountName?: string | null;
   claimStatus: ClaimStatus;
   claimedAt: string;
   submittedAt?: string | null;
@@ -302,4 +310,27 @@ export interface PointSummary {
   frozenPoints: number;
   withdrawnPoints: number;
   cashValue: number;
+}
+
+export interface NotificationItem {
+  id: string;
+  templateCode: string;
+  title: string;
+  content?: string | null;
+  status: 'UNREAD' | 'READ';
+  createdAt: string;
+  readAt?: string | null;
+  details?: {
+    taskId?: string;
+    claimId?: string;
+    submissionId?: string;
+    platform?: string;
+    role?: string;
+    [key: string]: unknown;
+  } | null;
+}
+
+export interface NotificationSummary {
+  unreadCount: number;
+  items: NotificationItem[];
 }

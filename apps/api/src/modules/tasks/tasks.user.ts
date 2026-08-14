@@ -10,7 +10,7 @@ export class UserTasksService {
   async list(userId: string): Promise<MyTaskItem[]> {
     const claims = await this.prisma.taskClaim.findMany({
       where: { userId: BigInt(userId), activeFlag: 1 },
-      include: { task: { include: { organization: true, fundProduct: true } }, submissions: { orderBy: { createdAt: 'desc' }, take: 1 } },
+      include: { executorAccount: true, task: { include: { organization: true, fundProduct: true } }, submissions: { orderBy: { createdAt: 'desc' }, take: 1 } },
       orderBy: { updatedAt: 'desc' },
       take: 50,
     });
@@ -19,9 +19,9 @@ export class UserTasksService {
       title: `${claim.task.platform}内容发布任务`,
       description: null,
       campaignName: null,
-      organization: { id: '', name: '任务信息' },
-      fundProduct: null,
       claimId: claim.id.toString(),
+      executorAccountId: claim.executorAccountId?.toString() ?? null,
+      executorAccountName: claim.executorAccount?.accountName ?? null,
       claimStatus: claim.status as MyTaskItem['claimStatus'],
       claimedAt: claim.claimedAt.toISOString(),
       submittedAt: claim.submittedAt?.toISOString() ?? null,

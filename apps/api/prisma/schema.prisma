@@ -194,7 +194,7 @@ model TaskClaim {
   statusHistory ClaimStatusHistory[]
   reviews TaskReview[]
 
-  @@unique([taskId, userId, activeFlag], map: "uk_task_claims_active")
+  @@unique([taskId, executorAccountId, activeFlag], map: "uk_task_claims_task_account_active")
   @@index([taskId, status], map: "idx_task_claims_task_status")
   @@index([userId, status], map: "idx_task_claims_user_status")
   @@index([executorAccountId, status], map: "idx_task_claims_account_status")

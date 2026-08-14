@@ -72,21 +72,41 @@ export class DashboardService {
         priority: row.status === TASK_STATUS.EXPIRED ? 'HIGH' as const : 'MEDIUM' as const,
       })),
     ].slice(0, 10);
-    const customer = await this.prisma.organization.findFirst({ where: { code: 'DEMO-ORG' } });
-    const customerTasks = customer ? await this.prisma.task.findMany({ where: { organizationId: customer.id } }) : [];
-    const customerSnapshot = customer
-      ? {
-          organizationName: customer.name,
-          fundProductName: '稳健增利混合基金',
-          activeTasks: customerTasks.filter((task) => [TASK_STATUS.PUBLISHED, TASK_STATUS.IN_PROGRESS].includes(task.status as typeof TASK_STATUS.PUBLISHED)).length,
-          totalTasks: customerTasks.length,
-          claimedCount: customerTasks.reduce((sum, task) => sum + task.claimedCount, 0),
-          approvedCount: customerTasks.reduce((sum, task) => sum + task.approvedCount, 0),
-          pendingReview,
-          completionRate: customerTasks.length ? Math.round((customerTasks.reduce((sum, task) => sum + task.approvedCount, 0) / Math.max(1, customerTasks.reduce((sum, task) => sum + task.claimedCount, 0))) * 100) : 0,
-          availablePoints: pointTotals._sum.availablePoints ?? 0,
-        }
-      : null;
+    const customerTaskRows = await this.prisma.task.findMany({
+      include: { organization: true, fundProduct: true, claims: { where: { status: CLAIM_STATUS.PENDING_REVIEW }, select: { id: true } } },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const customerKeys: string[] = [];
+    const customerGroups = new Map<string, typeof customerTaskRows>();
+    for (const task of customerTaskRows) {
+      const key = `${task.organizationId}-${task.fundProductId ?? 'none'}`;
+      if (!customerGroups.has(key)) {
+        customerKeys.push(key);
+        customerGroups.set(key, []);
+      }
+      customerGroups.get(key)!.push(task);
+    }
+    const customerSnapshots: DashboardSummary['customerSnapshots'] = customerKeys.map((key) => {
+      const rows = customerGroups.get(key)!;
+      const first = rows[0];
+      const claimedCount = rows.reduce((sum, task) => sum + task.claimedCount, 0);
+      const approvedCount = rows.reduce((sum, task) => sum + task.approvedCount, 0);
+      const reviewCount = rows.reduce((sum, task) => sum + task.claims.length, 0);
+      return {
+        organizationId: first.organizationId.toString(),
+        fundProductId: first.fundProductId?.toString() ?? null,
+        organizationName: first.organization.name,
+        fundProductName: first.fundProduct?.name ?? '未关联基金产品',
+        activeTasks: rows.filter((task) => [TASK_STATUS.PUBLISHED, TASK_STATUS.IN_PROGRESS].includes(task.status as typeof TASK_STATUS.PUBLISHED)).length,
+        totalTasks: rows.length,
+        claimedCount,
+        approvedCount,
+        pendingReview: reviewCount,
+        completionRate: claimedCount ? Math.round((approvedCount / claimedCount) * 100) : 0,
+        availablePoints: rows.reduce((sum, task) => sum + task.approvedCount * task.rewardPoints, 0),
+      };
+    }).sort((left, right) => (right.pendingReview - left.pendingReview) || (right.activeTasks - left.activeTasks) || (right.totalTasks - left.totalTasks));
+    const customerSnapshot = customerSnapshots[0] ?? null;
 
     return {
       pendingPublish,
@@ -100,6 +120,7 @@ export class DashboardService {
       todayDue,
       taskStats,
       actionQueue,
+      customerSnapshots,
       customerSnapshot,
     };
   }

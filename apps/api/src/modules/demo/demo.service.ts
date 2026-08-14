@@ -11,8 +11,13 @@ export class DemoService {
   async bootstrap(): Promise<DemoContext> {
     const organization = await this.prisma.organization.upsert({
       where: { code: 'DEMO-ORG' },
-      update: { status: 'ACTIVE' },
-      create: { code: 'DEMO-ORG', name: '演示基金营销中心' },
+      update: { name: '红土基金', status: 'ACTIVE' },
+      create: { code: 'DEMO-ORG', name: '红土基金' },
+    });
+    const organizationTwo = await this.prisma.organization.upsert({
+      where: { code: 'DEMO-ORG-002' },
+      update: { name: '易方达基金', status: 'ACTIVE' },
+      create: { code: 'DEMO-ORG-002', name: '易方达基金' },
     });
     const operator = await this.prisma.user.upsert({
       where: { username: 'admin' },
@@ -39,6 +44,11 @@ export class DemoService {
       update: { displayName: '基金内容负责人', passwordHash: hashPassword('123456'), role: 'FUND', status: 'ACTIVE' },
       create: { username: 'fund1', displayName: '基金内容负责人', passwordHash: hashPassword('123456'), role: 'FUND', status: 'ACTIVE' },
     });
+    const fundTwo = await this.prisma.user.upsert({
+      where: { username: 'fund2' },
+      update: { displayName: '易方达基金', passwordHash: hashPassword('123456'), role: 'FUND', status: 'ACTIVE' },
+      create: { username: 'fund2', displayName: '易方达基金', passwordHash: hashPassword('123456'), role: 'FUND', status: 'ACTIVE' },
+    });
     await this.prisma.user.updateMany({
       where: { username: { in: ['demo-operator', 'demo-executor', 'demo-executor-2', 'demo-executor-3'] } },
       data: { status: 'INACTIVE' },
@@ -53,7 +63,18 @@ export class DemoService {
         riskLevel: 'R3',
       },
     });
+    const fundProductTwo = await this.prisma.fundProduct.upsert({
+      where: { code: 'DEMO-FUND-002' },
+      update: { name: '易方达基金', status: 'ACTIVE' },
+      create: {
+        code: 'DEMO-FUND-002',
+        name: '易方达基金',
+        productType: '混合型',
+        riskLevel: 'R3',
+      },
+    });
     await this.prisma.user.update({ where: { id: fund.id }, data: { fundProductId: fundProduct.id } });
+    await this.prisma.user.update({ where: { id: fundTwo.id }, data: { fundProductId: fundProductTwo.id } });
 
     await this.prisma.userPointAccount.upsert({
       where: { userId: executor.id },
@@ -129,7 +150,13 @@ export class DemoService {
         id: fundProduct.id.toString(),
         name: fundProduct.name,
         code: fundProduct.code ?? '',
+        organizationId: organization.id.toString(),
+        organizationName: organization.name,
       },
+      fundProducts: [
+        { id: fundProduct.id.toString(), name: fundProduct.name, code: fundProduct.code ?? '', organizationId: organization.id.toString(), organizationName: organization.name },
+        { id: fundProductTwo.id.toString(), name: fundProductTwo.name, code: fundProductTwo.code ?? '', organizationId: organizationTwo.id.toString(), organizationName: organizationTwo.name },
+      ],
     };
   }
 }

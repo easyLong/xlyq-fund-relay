@@ -35,7 +35,7 @@ type TaskWithRelations = {
 export function toTaskListItem(task: TaskWithRelations): TaskListItem {
   return {
     id: task.id.toString(),
-    title: task.title,
+    title: task.fundTaskPost?.taskName ?? task.title,
     description: task.description,
     taskType: task.taskType,
     platform: task.platform,

@@ -1,4 +1,4 @@
-import type { ApiResponse, CreateTaskInput, DashboardSummary, DemoAccount, DemoContext, ExecutorAccount, ExecutorAccountSummary, FundTask, FundTaskPost, FundTaskProgress, HealthStatus, MyTaskItem, PageResponse, PointSummary, TaskDetail, TaskListItem } from '@xlyq/shared';
+import type { ApiResponse, CreateTaskInput, DashboardSummary, DemoAccount, DemoContext, ExecutorAccount, ExecutorAccountSummary, FundTask, FundTaskPost, FundTaskProgress, HealthStatus, MyTaskItem, NotificationSummary, PageResponse, PointSummary, TaskDetail, TaskListItem } from '@xlyq/shared';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   try {
@@ -31,6 +31,14 @@ export function getHealth() {
 
 export function getOperatorDashboard() {
   return request<ApiResponse<DashboardSummary>>('/api/v1/dashboards/operator');
+}
+
+export function getNotifications() {
+  return request<ApiResponse<NotificationSummary>>('/api/v1/notifications');
+}
+
+export function markNotificationsRead() {
+  return request<ApiResponse<NotificationSummary>>('/api/v1/notifications/read-all', { method: 'POST' });
 }
 
 export function getFundDashboard(fundProductId: string) {
@@ -68,7 +76,7 @@ export function getTaskDetail(id: string, viewerId?: string, viewerRole?: string
 }
 
 export function claimTask(taskId: string, userId: string) {
-  return request<ApiResponse<{ id: string; status: string; rewardPoints: number }>>(`/api/v1/tasks/${taskId}/claims`, {
+  return request<ApiResponse<{ ids: string[]; count: number; status: string; rewardPoints: number }>>(`/api/v1/tasks/${taskId}/claims`, {
     method: 'POST',
     body: JSON.stringify({ userId }),
   });

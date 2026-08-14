@@ -8,6 +8,7 @@ import { PointsModule } from './modules/points/points.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { FundPostsModule } from './modules/fund-posts/fund-posts.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { FundPostsModule } from './modules/fund-posts/fund-posts.module';
     AuthModule,
     AccountsModule,
     FundPostsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}
