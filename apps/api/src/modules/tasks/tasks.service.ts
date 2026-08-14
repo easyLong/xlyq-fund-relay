@@ -8,7 +8,7 @@ import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { SubmitTaskDto } from './dto/submit-task.dto';
 import { RemindTaskDto } from './dto/remind-task.dto';
 import { UpdateSubmissionDto } from './dto/update-submission.dto';
-import { toTaskListItem } from './tasks.mapper';
+import { toTaskListItem, withFundNamePrefix } from './tasks.mapper';
 
 const taskInclude = {
   organization: true,
@@ -224,7 +224,7 @@ export class TasksService {
       }
     }
 
-    const fundTask = input.fundTaskId ? await this.prisma.fundTask.findUnique({ where: { id: BigInt(input.fundTaskId) }, include: { posts: { where: { status: 'ACTIVE' } } } }) : null;
+    const fundTask = input.fundTaskId ? await this.prisma.fundTask.findUnique({ where: { id: BigInt(input.fundTaskId) }, include: { fundProduct: true, posts: { where: { status: 'ACTIVE' } } } }) : null;
     if (input.fundTaskId && (!fundTask || fundTask.status !== 'ACTIVE' || fundTask.fundProductId !== BigInt(input.fundProductId ?? '0') || fundTask.platform !== input.platform || fundTask.posts.length === 0)) {
       throw new BadRequestException('所选基金任务无效，或没有有效帖子');
     }
@@ -251,7 +251,7 @@ export class TasksService {
       const task = await this.prisma.task.create({
         data: {
           ...commonData,
-          title: fundTask.taskName,
+          title: withFundNamePrefix(fundTask.taskName, fundTask.fundProduct.name),
           description: postText || input.description,
           originalText: postText || input.originalText,
           platform: fundTask.platform,

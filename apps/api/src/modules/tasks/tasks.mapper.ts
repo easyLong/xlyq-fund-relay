@@ -32,10 +32,19 @@ type TaskWithRelations = {
   } | null;
 };
 
+export function withFundNamePrefix(title: string, fundName?: string | null) {
+  const cleanTitle = title.trim();
+  const cleanFundName = fundName?.trim();
+  if (!cleanFundName || !cleanTitle) return cleanTitle;
+  if (cleanTitle === cleanFundName || cleanTitle.startsWith(`${cleanFundName}｜`) || cleanTitle.startsWith(`${cleanFundName} - `) || cleanTitle.startsWith(`${cleanFundName}·`) || cleanTitle.startsWith(`${cleanFundName} `)) return cleanTitle;
+  return `${cleanFundName}｜${cleanTitle}`;
+}
+
 export function toTaskListItem(task: TaskWithRelations): TaskListItem {
+  const rawTitle = task.fundTaskPost?.taskName ?? task.title;
   return {
     id: task.id.toString(),
-    title: task.fundTaskPost?.taskName ?? task.title,
+    title: withFundNamePrefix(rawTitle, task.fundProduct?.name ?? task.organization.name),
     description: task.description,
     taskType: task.taskType,
     platform: task.platform,
