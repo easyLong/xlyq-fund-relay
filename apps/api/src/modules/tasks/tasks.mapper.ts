@@ -3,6 +3,7 @@ import type { TaskListItem } from '@xlyq/shared';
 type TaskWithRelations = {
   id: bigint;
   title: string;
+  fundProductName?: string | null;
   description: string | null;
   originalText?: string | null;
   taskType: string;
@@ -65,7 +66,9 @@ export function toTaskListItem(task: TaskWithRelations): TaskListItem {
           name: task.fundProduct.name,
           code: task.fundProduct.code,
         }
-      : null,
+      : task.fundProductName
+        ? { id: '', name: task.fundProductName, code: null }
+        : null,
     fundTaskPost: task.fundTaskPost
       ? { id: task.fundTaskPost.id.toString(), taskName: task.fundTaskPost.taskName, platform: task.fundTaskPost.platform, postTitle: task.fundTaskPost.postTitle, postUrl: task.fundTaskPost.postUrl }
       : null,

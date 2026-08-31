@@ -1,6 +1,7 @@
-import { Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, Post, Put, Query, Req } from '@nestjs/common';
 import { ok, page } from '../../common/response';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { ImportTasksDto } from './dto/import-tasks.dto';
 import { ClaimTaskDto } from './dto/claim-task.dto';
 import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { SubmitTaskDto } from './dto/submit-task.dto';
@@ -50,6 +51,11 @@ export class TasksController {
   @Post('tasks')
   async create(@Body() input: CreateTaskDto) {
     return ok(await this.tasksService.create(input));
+  }
+
+  @Post('tasks/import')
+  async import(@Body() input: ImportTasksDto, @Req() request: { user?: { id: string } }) {
+    return ok(await this.tasksService.importTasks(input, request.user?.id));
   }
 
   @Post('tasks/:id/publish')

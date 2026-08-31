@@ -47,7 +47,7 @@ export class DashboardService {
     });
     const reviewRows = await this.prisma.taskClaim.findMany({
       where: { status: CLAIM_STATUS.PENDING_REVIEW },
-      include: { task: true },
+      include: { task: true, fundTaskPost: true, executorAccount: true },
       orderBy: { submittedAt: 'asc' },
       take: 8,
     });
@@ -55,8 +55,8 @@ export class DashboardService {
       ...reviewRows.map((row) => ({
         id: `review-${row.id}`,
         type: 'REVIEW_SUBMISSION' as const,
-        title: '审核执行结果',
-        description: `${row.task.title} 有新的提交待处理`,
+        title: '审核帖子资产',
+        description: `${row.assignedPostTitle ?? row.fundTaskPost?.postTitle ?? row.task.title}${row.executorAccount?.accountName ? ` · ${row.executorAccount.accountName}` : ''}`,
         taskId: row.taskId.toString(),
         taskTitle: row.task.title,
         priority: 'HIGH' as const,
@@ -79,7 +79,7 @@ export class DashboardService {
     const customerKeys: string[] = [];
     const customerGroups = new Map<string, typeof customerTaskRows>();
     for (const task of customerTaskRows) {
-      const key = `${task.organizationId}-${task.fundProductId ?? 'none'}`;
+      const key = task.organizationId.toString();
       if (!customerGroups.has(key)) {
         customerKeys.push(key);
         customerGroups.set(key, []);
@@ -92,11 +92,12 @@ export class DashboardService {
       const claimedCount = rows.reduce((sum, task) => sum + task.claimedCount, 0);
       const approvedCount = rows.reduce((sum, task) => sum + task.approvedCount, 0);
       const reviewCount = rows.reduce((sum, task) => sum + task.claims.length, 0);
+      const productNames = [...new Set(rows.map((task) => task.fundProduct?.name ?? task.fundProductName).filter((name): name is string => Boolean(name?.trim())))];
       return {
         organizationId: first.organizationId.toString(),
-        fundProductId: first.fundProductId?.toString() ?? null,
+        fundProductId: null,
         organizationName: first.organization.name,
-        fundProductName: first.fundProduct?.name ?? '未关联基金产品',
+        fundProductName: productNames.length > 1 ? `${productNames.length} 个基金产品` : productNames[0] ?? '未关联基金产品',
         activeTasks: rows.filter((task) => [TASK_STATUS.PUBLISHED, TASK_STATUS.IN_PROGRESS].includes(task.status as typeof TASK_STATUS.PUBLISHED)).length,
         totalTasks: rows.length,
         claimedCount,

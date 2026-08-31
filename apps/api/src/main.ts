@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { json } from 'express';
 import 'reflect-metadata';
 import { AppModule } from './app.module';
 import { SessionGuard } from './modules/auth/session.guard';
@@ -12,6 +13,9 @@ async function bootstrap() {
     prefix: '/api/v1/upload-files/',
     index: false,
   });
+  app.use(json({ limit: '12mb' }));
+  // H5 screenshots are compressed on the client and submitted as data URLs.
+  // Keep enough room for three images while still rejecting unbounded payloads.
   app.setGlobalPrefix('api/v1');
   app.enableCors({
     origin: process.env.WEB_ORIGIN ?? `http://localhost:${process.env.WEB_PORT ?? 5173}`,

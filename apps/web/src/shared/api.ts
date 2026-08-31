@@ -11,16 +11,24 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
       },
       ...init,
     });
-    if (response.status === 401 && token && typeof window !== 'undefined') {
+    if (response.status === 401 && typeof window !== 'undefined') {
       window.dispatchEvent(new Event('xlyq-auth-expired'));
     }
     if (!response.ok) {
-      throw new Error(`请求失败：${response.status}`);
+      let detail = '';
+      try {
+        const payload = await response.json() as { message?: string | string[] };
+        detail = Array.isArray(payload.message) ? payload.message.join('；') : payload.message ?? '';
+      } catch {
+        // Keep the status when the server does not return JSON.
+      }
+      throw new Error(`请求失败：${response.status}${detail ? `：${detail}` : ''}`);
     }
     return response.json() as Promise<T>;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`${url} ${error.message}`);
+      if (error.message.startsWith('请求失败：')) throw error;
+      throw new Error('网络连接失败，请检查服务是否启动后重试');
     }
     throw error;
   }
@@ -107,6 +115,13 @@ export function getMyTasks(userId: string) {
 
 export function createTask(input: CreateTaskInput) {
   return request<ApiResponse<TaskListItem>>('/api/v1/tasks', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function importTasks(input: { rows: Array<{ organizationName: string; fundProductName: string; taskName: string; title: string; content: string; dueAt: string }>; platform: string }) {
+  return request<ApiResponse<{ total: number; created: number; updated: number; results: Array<{ row: number; action: 'created' | 'updated'; task: TaskListItem }> }>>('/api/v1/tasks/import', {
     method: 'POST',
     body: JSON.stringify(input),
   });

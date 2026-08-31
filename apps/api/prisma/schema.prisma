@@ -50,6 +50,21 @@ model User {
   @@map("users")
 }
 
+model AccountRole {
+  id               BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  username         String   @db.VarChar(64)
+  roleCode         String   @map("role_code") @db.VarChar(32)
+  organizationName String?  @map("organization_name") @db.VarChar(128)
+  status           String   @default("ACTIVE") @db.VarChar(32)
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@unique([username, roleCode], map: "uk_account_roles_username_role")
+  @@index([username, status], map: "idx_account_roles_username_status")
+  @@index([organizationName, status], map: "idx_account_roles_organization_status")
+  @@map("account_roles")
+}
+
 model FundProduct {
   id          BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
   code        String?  @unique(map: "uk_fund_products_code") @db.VarChar(64)
@@ -71,7 +86,9 @@ model Task {
   id                     BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
   organizationId         BigInt        @map("organization_id") @db.UnsignedBigInt
   fundProductId          BigInt?       @map("fund_product_id") @db.UnsignedBigInt
+  fundProductName        String?       @map("fund_product_name") @db.VarChar(128)
   title                  String        @db.VarChar(160)
+  taskKey                String?       @unique(map: "uk_tasks_business_key") @map("task_key") @db.VarChar(512)
   description            String?       @db.Text
   originalText           String?       @map("original_text") @db.LongText
   taskType               String        @map("task_type") @db.VarChar(64)
@@ -138,6 +155,7 @@ model FundTaskPost {
   createdBy   BigInt      @map("created_by") @db.UnsignedBigInt
   taskName    String      @map("task_name") @db.VarChar(160)
   platform    String      @db.VarChar(64)
+  postKey     String?     @unique(map: "uk_fund_task_posts_business_key") @map("post_key") @db.VarChar(512)
   postTitle  String?      @map("post_title") @db.VarChar(255)
   postContent String?     @map("post_content") @db.LongText
   postUrl    String?      @map("post_url") @db.VarChar(1024)
@@ -147,6 +165,7 @@ model FundTaskPost {
   fundProduct FundProduct @relation(fields: [fundProductId], references: [id])
   creator     User        @relation(fields: [createdBy], references: [id])
   tasks       Task[]
+  claims      TaskClaim[]
   fundTaskId  BigInt?     @map("fund_task_id") @db.UnsignedBigInt
   fundTask    FundTask?   @relation(fields: [fundTaskId], references: [id])
 
@@ -175,6 +194,7 @@ model FundTask {
 model TaskClaim {
   id          BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
   taskId      BigInt           @map("task_id") @db.UnsignedBigInt
+  fundTaskPostId BigInt?       @map("fund_task_post_id") @db.UnsignedBigInt
   userId      BigInt           @map("user_id") @db.UnsignedBigInt
   status      String           @default("PENDING_SUBMIT") @db.VarChar(32)
   activeFlag  Int?             @default(1) @map("active_flag") @db.UnsignedTinyInt
@@ -187,14 +207,19 @@ model TaskClaim {
   createdAt   DateTime         @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt   DateTime         @updatedAt @map("updated_at") @db.DateTime(3)
   task        Task             @relation(fields: [taskId], references: [id])
+  fundTaskPost FundTaskPost?   @relation(fields: [fundTaskPostId], references: [id])
   user        User             @relation(fields: [userId], references: [id])
   executorAccountId BigInt?    @map("executor_account_id") @db.UnsignedBigInt
+  assignedPostTitle String?    @map("assigned_post_title") @db.VarChar(255)
+  assignedPostContent String?  @map("assigned_post_content") @db.LongText
+  assignedPostUrl String?      @map("assigned_post_url") @db.VarChar(1024)
   executorAccount ExecutorAccount? @relation(fields: [executorAccountId], references: [id])
   submissions TaskSubmission[]
   statusHistory ClaimStatusHistory[]
   reviews TaskReview[]
 
   @@unique([taskId, executorAccountId, activeFlag], map: "uk_task_claims_task_account_active")
+  @@unique([fundTaskPostId, activeFlag], map: "uk_task_claims_post_active")
   @@index([taskId, status], map: "idx_task_claims_task_status")
   @@index([userId, status], map: "idx_task_claims_user_status")
   @@index([executorAccountId, status], map: "idx_task_claims_account_status")

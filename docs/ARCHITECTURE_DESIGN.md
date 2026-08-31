@@ -148,15 +148,15 @@ TaskClaim
   +-- ClaimStatusHistory
 ```
 
-`Task` 是运营发布的营销任务。`TaskClaim` 是某个用户对某个任务的领取和执行实例。一个任务可以有多个领取记录，一个用户在同一任务下默认只能有一个有效领取记录。
+`Task` 是运营发布的营销任务，包含多条待执行帖子。`TaskClaim` 是一条帖子分配给某个兼职发布账号后的独立执行实例：一条领取记录只对应一条帖子、一个发布账号和一套提交资产。同一兼职可以凭多个发布账号在同一任务下获得多条帖子。
 
 ### 3.2 核心不变量
 
 - 只有 `draft` 和 `pending_publish` 状态的任务允许编辑核心字段。
 - `published` 或 `in_progress` 的任务不允许减少到低于已领取数量的名额。
 - 用户领取任务时必须同时检查任务状态、截止时间、剩余名额和领取资格。
-- 同一用户同一任务只允许存在一个未终结的领取记录。
-- 提交材料必须绑定到有效领取记录，不能直接绑定到用户或任务。
+- 同一发布账号在同一任务下只允许存在一条有效领取记录，同一帖子只能分配一次。
+- 发布链接、截图和提交说明必须绑定到对应帖子的有效领取记录，不能直接绑定到用户或父任务。
 - 审核只能针对最新待审核提交执行，历史提交只读保留。
 - 驳回必须填写原因，作废必须填写原因。
 - 所有状态变更必须写入状态历史和审计日志。
@@ -378,12 +378,13 @@ users.mobile unique nullable
 users.email unique nullable
 organizations.code unique
 fund_products.code unique nullable
-task_claims(task_id, user_id, active_flag) unique
+task_claims(task_id, executor_account_id, active_flag) unique
+task_claims(fund_task_post_id, active_flag) unique
 task_reviews(submission_id) unique
 notifications(event_id, recipient_id, template_code) unique
 ```
 
-MySQL 不支持 PostgreSQL 风格的 partial unique index。`task_claims.active_flag` 建议用 `TINYINT` 或生成列实现：有效领取记录为 `1`，终结态记录为 `0` 或 `NULL`。这样可以保证同一用户同一任务最多只有一个有效领取，同时保留历史放弃、作废、过期记录。
+MySQL 不支持 PostgreSQL 风格的 partial unique index。`task_claims.active_flag` 使用 `TINYINT`：有效记录为 `1`，终结态记录可为 `0` 或 `NULL`。它与任务、发布账号及帖子组成唯一约束，保证一个账号在一个任务内只执行一条帖子、同一帖子只被分配一次，同时保留历史记录。
 
 ### 7.3 乐观锁
 

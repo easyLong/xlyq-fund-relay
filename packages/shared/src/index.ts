@@ -242,8 +242,8 @@ export interface FundDashboardSummary {
   postCount: number;
   claimedCount: number;
   submittedCount: number;
-  approvedCount: number;
   pendingReviewCount: number;
+  approvedCount: number;
   tasks: Array<{
     id: string;
     taskName: string;
@@ -264,7 +264,10 @@ export interface FundTaskProgress {
   postCount: number;
   publishedTaskCount: number;
   claimedCount: number;
+  pendingSubmitCount: number;
   submittedCount: number;
+  pendingReviewCount: number;
+  reworkingCount: number;
   approvedCount: number;
   completionRate: number;
   status: string;
@@ -281,6 +284,10 @@ export interface TaskDetail extends TaskListItem {
     userName: string;
     executorAccountId?: string | null;
     executorAccountName?: string | null;
+    fundTaskPostId?: string | null;
+    fundTaskPostTitle?: string | null;
+    fundTaskPostContent?: string | null;
+    fundTaskPostUrl?: string | null;
     status: string;
     claimedAt: string;
     submission?: {
@@ -299,6 +306,9 @@ export interface MyTaskItem extends TaskListItem {
   claimId: string;
   executorAccountId?: string | null;
   executorAccountName?: string | null;
+  assignedPostTitle?: string | null;
+  assignedPostContent?: string | null;
+  assignedPostUrl?: string | null;
   claimStatus: ClaimStatus;
   claimedAt: string;
   submittedAt?: string | null;

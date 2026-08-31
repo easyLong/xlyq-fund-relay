@@ -12,12 +12,14 @@ export class AccountsService {
     const user = await this.prisma.user.findUnique({ where: { id }, select: { role: true, status: true } });
     if (!user || user.role !== 'EXECUTOR') throw new NotFoundException('兼职账号不存在');
     const accounts = await this.prisma.executorAccount.findMany({ where: { userId: id }, orderBy: { id: 'asc' } });
-    const activeTaskCount = await this.prisma.taskClaim.count({ where: { userId: id, activeFlag: 1, status: { in: ['PENDING_SUBMIT', 'PENDING_REVIEW', 'REWORKING'] } } });
+    const activeClaims = await this.prisma.taskClaim.findMany({ where: { userId: id, activeFlag: 1, status: { in: ['PENDING_SUBMIT', 'PENDING_REVIEW', 'REWORKING'] } }, select: { executorAccountId: true } });
+    const busyAccountIds = new Set(activeClaims.map((claim) => claim.executorAccountId?.toString()).filter(Boolean));
+    const activeTaskCount = activeClaims.length;
     return {
       accounts: accounts.map((account) => ({ id: account.id.toString(), platform: account.platform, accountName: account.accountName, accountUid: account.accountUid, status: account.status, passwordSet: Boolean(account.passwordEncrypted) })),
       accountCount: accounts.filter((account) => account.status === 'ACTIVE').length,
       activeTaskCount,
-      availableTaskSlots: Math.max(0, accounts.filter((account) => account.status === 'ACTIVE').length - activeTaskCount),
+      availableTaskSlots: accounts.filter((account) => account.status === 'ACTIVE' && !busyAccountIds.has(account.id.toString())).length,
     };
   }
 

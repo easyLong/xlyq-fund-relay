@@ -9,6 +9,17 @@ export class DemoService {
   constructor(private readonly prisma: PrismaService) {}
 
   async bootstrap(): Promise<DemoContext> {
+    await this.prisma.accountRole.createMany({
+      data: [
+        { username: 'admin', roleCode: 'OPERATOR', organizationName: null, status: 'ACTIVE' },
+        { username: 'staff1', roleCode: 'EXECUTOR', organizationName: null, status: 'ACTIVE' },
+        { username: 'staff2', roleCode: 'EXECUTOR', organizationName: null, status: 'ACTIVE' },
+        { username: 'staff3', roleCode: 'EXECUTOR', organizationName: null, status: 'ACTIVE' },
+        { username: 'fund1', roleCode: 'FUND', organizationName: '红土基金', status: 'ACTIVE' },
+        { username: 'fund2', roleCode: 'FUND', organizationName: '易方达基金', status: 'ACTIVE' },
+      ],
+      skipDuplicates: true,
+    });
     const organization = await this.prisma.organization.upsert({
       where: { code: 'DEMO-ORG' },
       update: { name: '红土基金', status: 'ACTIVE' },
