@@ -29,7 +29,7 @@ sudo mkdir -p /srv/xlyq-fund-relay
 sudo chown -R "$USER":"$USER" /srv/xlyq-fund-relay
 git clone https://github.com/easyLong/xlyq-fund-relay.git /srv/xlyq-fund-relay
 cd /srv/xlyq-fund-relay
-npm ci
+npm ci --include=optional
 npm run prisma:generate
 ```
 
@@ -38,7 +38,7 @@ npm run prisma:generate
 ```bash
 cd /srv/xlyq-fund-relay
 git pull --ff-only origin main
-npm ci
+npm ci --include=optional
 npm run prisma:generate
 ```
 
@@ -206,7 +206,20 @@ pm2 logs xlyq-fund-relay-api --lines 200
 sudo journalctl -u nginx -n 100 --no-pager
 ```
 
-## 11. 当前版本边界
+## 11. Rollup Linux 原生包故障处理
+
+如果启动 H5 时出现 `Cannot find module @rollup/rollup-linux-x64-gnu`，说明服务器的 `node_modules` 是从其他操作系统复制来的，或 npm 没有安装可选依赖。只清理服务器上的依赖目录后重装，保留仓库中的锁文件：
+
+```bash
+cd /srv/xlyq-fund-relay
+rm -rf node_modules apps/api/node_modules apps/web/node_modules packages/shared/node_modules
+npm ci --include=optional
+npm run build
+```
+
+不要删除 `package-lock.json`。当前锁文件已包含 Linux x64 的 Rollup 可选包；如果服务器是 ARM 架构，请确认 Node.js、CPU 架构和对应 Rollup 原生包匹配。
+
+## 12. 当前版本边界
 
 - 截图目前以压缩 data URL 存储在提交数据中，应持续监控数据库容量，后续建议接入对象存储。
 - 正式环境必须关闭 `/api/v1/demo/bootstrap`，演示账号仅用于开发和验收。
