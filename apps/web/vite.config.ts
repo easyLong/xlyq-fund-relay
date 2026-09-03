@@ -28,6 +28,13 @@ if (!apiPort) {
   throw new Error('Missing API_PORT in .env');
 }
 
+const apiProxy = {
+  '/api': {
+    target: `http://127.0.0.1:${apiPort}`,
+    changeOrigin: true,
+  },
+};
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -36,12 +43,15 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0',
     port: webPort,
-    proxy: {
-      '/api': {
-        target: `http://localhost:${apiPort}`,
-        changeOrigin: true,
-      },
-    },
+    strictPort: true,
+    proxy: apiProxy,
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: webPort,
+    strictPort: true,
+    proxy: apiProxy,
   },
 });
